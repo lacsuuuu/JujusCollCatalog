@@ -1,19 +1,20 @@
+import { lazy, Suspense } from 'react';
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import Profile from './components/Profile.jsx';
-import AddMerch from './components/AddMerch.jsx';
-import MerchGallery from './components/MerchGallery.jsx';
-import AddPost from './components/AddPost.jsx';
-import Feed from './components/Feed.jsx';
-import Login from './components/Login.jsx';
-import GroupManager from './components/GroupManager.jsx';
-import GroupDirectory from './components/GroupDirectory.jsx';
-import GroupPage from './components/GroupPage.jsx';
-import ArtistDirectory from './components/ArtistDirectory.jsx';
-import MemberPage from './components/MemberPage.jsx';
-import Binders from './components/Binders.jsx';
+const Profile = lazy(() => import('./components/Profile.jsx'));
+const AddMerch = lazy(() => import('./components/AddMerch.jsx'));
+const MerchGallery = lazy(() => import('./components/MerchGallery.jsx'));
+const AddPost = lazy(() => import('./components/AddPost.jsx'));
+const Feed = lazy(() => import('./components/Feed.jsx'));
+const Login = lazy(() => import('./components/Login.jsx'));
+const GroupManager = lazy(() => import('./components/GroupManager.jsx'));
+const GroupDirectory = lazy(() => import('./components/GroupDirectory.jsx'));
+const GroupPage = lazy(() => import('./components/GroupPage.jsx'));
+const ArtistDirectory = lazy(() => import('./components/ArtistDirectory.jsx'));
+const MemberPage = lazy(() => import('./components/MemberPage.jsx'));
+const Binders = lazy(() => import('./components/Binders.jsx'));
 
 // Navigation bar — Groups tab is only visible when logged in as admin
 function NavigationTabs({ user }) {
@@ -166,6 +167,7 @@ function App() {
         <NavigationTabs user={user} />
 
         <div style={{ width: '100%' }}>
+          <Suspense fallback={<div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>}>
           <Routes>
             <Route path="/" element={<Profile user={user} />} />
             <Route path="/gallery" element={
@@ -189,6 +191,7 @@ function App() {
             <Route path="/admin" element={<Login user={user} />} />
             <Route path="/artist/:groupId/:memberName" element={<MemberPage />} />
           </Routes>
+          </Suspense>
         </div>
 
       </main>
