@@ -10,9 +10,9 @@ import { getAuth } from "firebase/auth";
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: "photocard-db.firebaseapp.com",
-  projectId: "photocard-db",
-  storageBucket: "photocard-db.firebasestorage.app",
+  authDomain: "jujuscollcatalog.firebaseapp.com",
+  projectId: "jujuscollcatalog",
+  storageBucket: "jujuscollcatalog.firebasestorage.app",
   messagingSenderId: "144682863645",
   appId: "1:144682863645:web:0f98d01c0aaa02ec054af4",
   measurementId: "G-6YJHS7MMQQ"
