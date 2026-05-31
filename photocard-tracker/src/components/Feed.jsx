@@ -136,10 +136,10 @@ export default function Feed({ user }) {
       for (let i = 0; i < editPhotos.length; i++) {
         if (editPhotos[i].file) {
           const formData = new FormData();
-          formData.append('file', editPhotos[i].file);
           const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
           const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-          
+          formData.append('file', editPhotos[i].file);
+          formData.append('upload_preset', uploadPreset);
           const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
             method: 'POST', body: formData
           });

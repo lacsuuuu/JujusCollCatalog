@@ -81,10 +81,10 @@ export default function AddPost() {
       for (let i = 0; i < photos.length; i++) {
         const compressedFile = await imageCompression(photos[i].file, options);
         const formData = new FormData();
-        formData.append('file', compressedFile);
         const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
         const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-        
+        formData.append('file', compressedFile);
+        formData.append('upload_preset', uploadPreset);
         const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
         const cloudinaryData = await cloudinaryRes.json();
         
@@ -168,10 +168,10 @@ export default function AddPost() {
               <button 
                 className="del-btn" 
                 onClick={handleDeletePhoto} 
-                style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#6A585B', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 15, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', backdropFilter: 'blur(4px)' }}
+                style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: 'rgba(49,37,39,0.65)', backdropFilter: 'blur(4px)', color: 'white', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', zIndex: 15, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
                 title="Delete Photo"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
               </button>
 
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1rem', background: 'linear-gradient(transparent, rgba(49,37,39,0.85))', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', color: '#FFF' }}>

@@ -101,14 +101,14 @@ export default function MemberPage() {
   const handleSave = async () => {
     try {
       setAlertMsg("Uploading photos and saving...");
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
       let finalProfileImageUrl = editForm.profileImageUrl || '';
       
       if (editForm.profileImageFile) {
         const iconData = new FormData(); 
         iconData.append('file', editForm.profileImageFile); 
-        const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME; 
-        
+        iconData.append('upload_preset', uploadPreset);
         const iconResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: iconData });
         const iconUploadData = await iconResponse.json();
         
@@ -124,9 +124,7 @@ export default function MemberPage() {
         if (photo.file) {
           const formData = new FormData(); 
           formData.append('file', photo.file); 
-          formData.append('upload_preset', uploadPreset); 
-          const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME; 
-          
+          formData.append('upload_preset', uploadPreset);
           const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
           const uploadData = await response.json();
           

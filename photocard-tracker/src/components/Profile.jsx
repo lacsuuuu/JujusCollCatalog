@@ -200,7 +200,7 @@ export default function Profile({ user }) {
       formData.append('file', uploadBlob);
       const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-
+      formData.append('upload_preset', uploadPreset);
       const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',
         body: formData,
@@ -578,6 +578,16 @@ export default function Profile({ user }) {
                   <img src="/cam.svg" alt="cam" width="20" height="20" /><span>Change Banner</span>
               </div>
           )}
+          {isEditing && editForm.bannerUrl && editForm.bannerUrl !== defaultBanner && (
+            <button
+              className="del-btn"
+              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, bannerUrl: defaultBanner })); }}
+              style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: 'rgba(49,37,39,0.65)', backdropFilter: 'blur(4px)', color: 'white', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
+              title="Remove Banner"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          )}
         </div>
 
         {/* Global Edit Button */}
@@ -595,12 +605,24 @@ export default function Profile({ user }) {
           </button>
         )}
         
-        <div className="profile-avatar-container" style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #E6DADD', position: 'absolute', bottom: '-60px', left: '1rem', backgroundColor: '#E6DADD', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 20 }}>
-          <img key={isEditing ? editForm.avatarUrl : profileData.avatarUrl} src={isEditing ? editForm.avatarUrl : profileData.avatarUrl} alt="Avatar" onError={(e) => handleImageError(e, defaultAvatar)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          {isEditing && (
-            <div style={{ ...overlayStyle, fontSize: '0.8rem', textAlign: 'center', flexDirection: 'column', gap: '0px' }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = 0} onClick={() => handleImageClick('avatar')}>
-              <img src="cam.svg" alt="cam" width="20" height="20"/><span>Change Icon</span>
-            </div>
+        <div style={{ position: 'absolute', bottom: '-60px', left: '1rem', zIndex: 20 }}>
+          <div className="profile-avatar-container" style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #E6DADD', backgroundColor: '#E6DADD', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+            <img key={isEditing ? editForm.avatarUrl : profileData.avatarUrl} src={isEditing ? editForm.avatarUrl : profileData.avatarUrl} alt="Avatar" onError={(e) => handleImageError(e, defaultAvatar)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            {isEditing && (
+              <div style={{ ...overlayStyle, fontSize: '0.8rem', textAlign: 'center', flexDirection: 'column', gap: '0px' }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = 0} onClick={() => handleImageClick('avatar')}>
+                <img src="cam.svg" alt="cam" width="20" height="20"/><span>Change Icon</span>
+              </div>
+            )}
+          </div>
+          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== defaultAvatar && (
+            <button
+              className="del-btn"
+              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: defaultAvatar })); }}
+              style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
+              title="Remove Avatar"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
           )}
         </div>
       </div>

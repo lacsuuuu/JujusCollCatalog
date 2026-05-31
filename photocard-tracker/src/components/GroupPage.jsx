@@ -86,12 +86,14 @@ export default function GroupPage() {
     try {
       setAlertMsg("Uploading and saving...");
 
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+
       let finalGroupImageUrl = editForm.groupImageUrl || '';
       if (editForm.groupImageFile) {
         const fd = new FormData();
         fd.append('file', editForm.groupImageFile);
-        const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+        fd.append('upload_preset', uploadPreset);
         const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: fd });
         const uploadData = await res.json();
         if (uploadData.secure_url) finalGroupImageUrl = uploadData.secure_url;

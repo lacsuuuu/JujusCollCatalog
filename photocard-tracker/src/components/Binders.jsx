@@ -305,16 +305,16 @@ export default function Binders({ user }) {
         .slot-image { width: 100%; height: 100%; object-fit: cover; }
         
         .slot-remove-btn {
-           position: absolute; top: 6px; right: 6px; width: 26px; height: 26px;
-           background: #6A585B; color: white; border-radius: 50%; border: none;
+           position: absolute; top: 6px; right: 6px; width: 30px; height: 30px;
+           background: rgba(49,37,39,0.65); backdrop-filter: blur(4px); color: white;
+           border-radius: 50%; border: none;
            display: flex; justify-content: center; align-items: center; cursor: pointer;
            opacity: 0; transition: all 0.2s; z-index: 10;
-           box-shadow: 0 2px 6px rgba(49, 37, 39, 0.3);
            padding: 0; 
            line-height: 0; 
         }
         .slot-container:hover .slot-remove-btn { opacity: 1; }
-        .slot-remove-btn:hover { transform: scale(1.15); background: #A85A66; }
+        .slot-remove-btn:hover { filter: brightness(0.8); transform: scale(1.05); }
         
         .slot-remove-btn svg {
            display: block; 
@@ -527,7 +527,7 @@ export default function Binders({ user }) {
                             <img src={card.imageUrl} alt={card.customName} className="slot-image" draggable="false" />
                             {isEditing && (
                               <button className="slot-remove-btn" onClick={(e) => { e.stopPropagation(); removeCardFromSlot(index); }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                               </button>
                             )}
                           </>

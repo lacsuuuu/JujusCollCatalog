@@ -475,7 +475,19 @@ export default function AddMerch() {
           <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop} onClick={() => fileInputRef.current.click()}
             style={{ flex: 1, border: `2px dashed ${dragging ? '#8D6E73' : '#A08D90'}`, borderRadius: '8px', padding: '1.5rem 0.5rem', textAlign: 'center', cursor: 'pointer', backgroundColor: dragging ? '#B09C9F' : '#C2B0B4', transition: 'all 0.2s' }}>
             {preview ? (
-              <><img src={preview} alt="Preview" style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} /><p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>{category === 'Photocard' ? 'Change Front' : 'Change Image'}</p></>
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  className="del-btn"
+                  onClick={(e) => { e.stopPropagation(); setFile(null); setPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                  style={{ position: 'absolute', top: '6px', right: '6px', backgroundColor: 'rgba(49,37,39,0.65)', backdropFilter: 'blur(4px)', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 5, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
+                  title="Remove Image"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+                <img src={preview} alt="Preview" style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} />
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>{category === 'Photocard' ? 'Change Front' : 'Change Image'}</p>
+              </div>
             ) : (
               <><p style={{ margin: 0 }}><img src="/frame.svg" alt="Frame" width="25" height="25" /></p><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>{category === 'Photocard' ? 'Front Image' : 'Drop image here'}</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
             )}
@@ -486,7 +498,19 @@ export default function AddMerch() {
             <div onDragOver={(e) => { e.preventDefault(); setBackDragging(true); }} onDragLeave={() => setBackDragging(false)} onDrop={handleBackDrop} onClick={() => backFileInputRef.current.click()}
               style={{ flex: 1, border: `2px dashed ${backDragging ? '#8D6E73' : '#A08D90'}`, borderRadius: '8px', padding: '1.5rem 0.5rem', textAlign: 'center', cursor: 'pointer', backgroundColor: backDragging ? '#B09C9F' : '#C2B0B4', transition: 'all 0.2s' }}>
               {backPreview ? (
-                <><img src={backPreview} alt="Back Preview" style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} /><p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>Change Back</p></>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="del-btn"
+                    onClick={(e) => { e.stopPropagation(); setBackFile(null); setBackPreview(null); if (backFileInputRef.current) backFileInputRef.current.value = ''; }}
+                    style={{ position: 'absolute', top: '6px', right: '6px', backgroundColor: 'rgba(49,37,39,0.65)', backdropFilter: 'blur(4px)', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 5, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
+                    title="Remove Image"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                  <img src={backPreview} alt="Back Preview" style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} />
+                  <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>Change Back</p>
+                </div>
               ) : (
                 <><p style={{ margin: 0, opacity: 0.5 }}><img src="/frame.svg" alt="Frame" width="25" height="25" /></p><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Backprint</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
               )}
