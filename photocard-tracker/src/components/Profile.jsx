@@ -217,7 +217,7 @@ export default function Profile({ user }) {
       setCroppingField(null);
     } catch (e) {
       console.error("FAILED AT:", e);
-      alert("❌ Failed to process image.");
+      alert("Failed to process image.");
     }
   };
 
@@ -225,10 +225,48 @@ export default function Profile({ user }) {
     e.target.src = fallback;
   };
 
+  // 1. Get unique groups and rank them by how much merch they have (Highest to Lowest)
   const uniqueGroupNames = groups.map(g => g.name).filter(Boolean).sort();
+  
+  const sortedGroupsByCount = [...uniqueGroupNames].sort((a, b) => {
+    const countA = merch.filter(item => item.groupName === a).length;
+    const countB = merch.filter(item => item.groupName === b).length;
+    return countB - countA;
+  });
+
+  // 2. Auto-select the #1 group on load (waiting for merch to finish loading first)
+  useEffect(() => {
+    if (!loading && filterGroup === 'All' && sortedGroupsByCount.length > 0) {
+      setFilterGroup(sortedGroupsByCount[0]);
+    }
+  }, [loading, filterGroup, sortedGroupsByCount[0]]);
+
   const currentGroup = groups.find(g => g.name === filterGroup);
-  const uniqueEras = ['All', ...(currentGroup?.eras || merch.map(i => i.era).filter(Boolean))];
-  const uniqueMembers = ['All', ...(currentGroup?.members || merch.map(i => i.memberName).filter(Boolean))];
+
+  // 3. Pull predefined DB lists ONLY for the selected group
+  const dbEras = currentGroup?.eras || [];
+  const dbMembers = currentGroup?.members || [];
+
+  // 4. Isolate the currently active merch
+  const activeMerch = merch.filter(i => i.groupName === filterGroup);
+
+  // 5. Combine DB data with merch data, deduplicate with Set, and sort
+  const uniqueEras = [
+    'All', 
+    ...[...new Set([
+      ...dbEras, 
+      ...activeMerch.map(i => i.era)
+    ].filter(Boolean))].sort()
+  ];
+  
+  const uniqueMembers = [
+    'All', 
+    ...[...new Set([
+      ...dbMembers, 
+      ...activeMerch.map(i => i.memberName)
+    ].filter(Boolean))].sort()
+  ];
+
   const uniqueCategories = ['All', 'Photocard', 'Album', 'Lightstick', 'Postcard / Poster', 'Plushie / Toy', 'Other'];
 
   const handleGroupChange = (val) => {
@@ -240,7 +278,7 @@ export default function Profile({ user }) {
 
   const resetFilters = () => {
     setFilterCategory('All');
-    setFilterGroup('All');
+    if (uniqueGroupNames.length > 0) setFilterGroup(uniqueGroupNames[0]);
     setFilterEra('All');
     setFilterMember('All');
     setSearchQuery('');
