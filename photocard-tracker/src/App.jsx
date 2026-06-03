@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { AuthProvider } from './context/AuthContext';
 const Profile = lazy(() => import('./components/user/Profile.jsx'));
 const AddMerch = lazy(() => import('./components/merch/AddMerch.jsx'));
 const MerchGallery = lazy(() => import('./components/merch/MerchGallery.jsx'));
@@ -60,6 +61,7 @@ function App() {
   }, []);
 
   return (
+    <AuthProvider>
     <Router>
       {/* Global styles: font, background color, layout reset */}
       <style>{`
@@ -196,6 +198,7 @@ function App() {
 
       </main>
     </Router>
+    </AuthProvider>
   );
 }
 
