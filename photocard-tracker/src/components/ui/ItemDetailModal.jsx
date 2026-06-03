@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import imageCompression from 'browser-image-compression';
-import { deleteCloudinaryImage } from '../utils/cloudinaryUtils';
+import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
 
 const CustomSelect = ({ value, onChange, options, placeholder, style }) => {
   const [isOpen, setIsOpen] = useState(false);

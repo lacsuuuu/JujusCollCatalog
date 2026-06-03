@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import imageCompression from 'browser-image-compression';
-import ThemeAlert from './ThemeAlert';
+import ThemeAlert from '../ui/ThemeAlert';
 
 const inputStyle = {
   padding: '0.7rem 1rem',

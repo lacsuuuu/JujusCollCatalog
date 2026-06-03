@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import ItemDetailModal from './ItemDetailModal';
-import ThemeAlert from './ThemeAlert';
+import ItemDetailModal from '../ui/ItemDetailModal';
+import ThemeAlert from '../ui/ThemeAlert';
 
 const CustomSelect = ({ value, onChange, options, placeholder, style, dark = false, direction = 'down' }) => {
   const [isOpen, setIsOpen] = useState(false);

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import imageCompression from 'browser-image-compression';
-import ThemeAlert from './ThemeAlert';
+import ThemeAlert from '../ui/ThemeAlert';
 
 const CustomSelect = ({ value, onChange, options, placeholder, disabled, required, style, showArrow = false }) => {
   const [isOpen, setIsOpen] = useState(false);

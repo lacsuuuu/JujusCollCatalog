@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import ThemeAlert from './ThemeAlert';
+import ThemeAlert from '../ui/ThemeAlert';
 
 const inputStyle = {
   padding: '0.7rem 1rem',

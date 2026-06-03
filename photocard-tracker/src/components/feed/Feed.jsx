@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import ThemeAlert from './ThemeAlert';
-import { deleteCloudinaryImage } from '../utils/cloudinaryUtils';
+import ThemeAlert from '../ui/ThemeAlert';
+import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
 
 const arrowStyle = {
   position: 'absolute', top: '50%', transform: 'translateY(-50%)',

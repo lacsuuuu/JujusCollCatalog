@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import ThemeAlert from './ThemeAlert';
-import ItemDetailModal from './ItemDetailModal'; 
-import { deleteCloudinaryImage } from '../utils/cloudinaryUtils';
+import ThemeAlert from '../ui/ThemeAlert';
+import ItemDetailModal from '../ui/ItemDetailModal'; 
+import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
 
 export default function MemberPage() {
   const { groupId, memberName } = useParams();

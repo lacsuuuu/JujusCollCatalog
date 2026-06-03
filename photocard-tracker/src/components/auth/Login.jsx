@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { auth } from '../../firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import ThemeAlert from './ThemeAlert';
+import ThemeAlert from '../ui/ThemeAlert';
 
 const inputStyle = {
   padding: '0.7rem 1rem',

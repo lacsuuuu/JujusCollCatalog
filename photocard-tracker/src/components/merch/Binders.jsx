@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, deleteField } from 'firebase/firestore';
-import ThemeAlert from './ThemeAlert';
+import ThemeAlert from '../ui/ThemeAlert';
 
 export default function Binders({ user }) {
   const [binders, setBinders] = useState([]);

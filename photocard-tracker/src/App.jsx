@@ -3,18 +3,18 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-const Profile = lazy(() => import('./components/Profile.jsx'));
-const AddMerch = lazy(() => import('./components/AddMerch.jsx'));
-const MerchGallery = lazy(() => import('./components/MerchGallery.jsx'));
-const AddPost = lazy(() => import('./components/AddPost.jsx'));
-const Feed = lazy(() => import('./components/Feed.jsx'));
-const Login = lazy(() => import('./components/Login.jsx'));
-const GroupManager = lazy(() => import('./components/GroupManager.jsx'));
-const GroupDirectory = lazy(() => import('./components/GroupDirectory.jsx'));
-const GroupPage = lazy(() => import('./components/GroupPage.jsx'));
-const ArtistDirectory = lazy(() => import('./components/ArtistDirectory.jsx'));
-const MemberPage = lazy(() => import('./components/MemberPage.jsx'));
-const Binders = lazy(() => import('./components/Binders.jsx'));
+const Profile = lazy(() => import('./components/user/Profile.jsx'));
+const AddMerch = lazy(() => import('./components/merch/AddMerch.jsx'));
+const MerchGallery = lazy(() => import('./components/merch/MerchGallery.jsx'));
+const AddPost = lazy(() => import('./components/feed/AddPost.jsx'));
+const Feed = lazy(() => import('./components/feed/Feed.jsx'));
+const Login = lazy(() => import('./components/auth/Login.jsx'));
+const GroupManager = lazy(() => import('./components/groups/GroupManager.jsx'));
+const GroupDirectory = lazy(() => import('./components/groups/GroupDirectory.jsx'));
+const GroupPage = lazy(() => import('./components/groups/GroupPage.jsx'));
+const ArtistDirectory = lazy(() => import('./components/groups/ArtistDirectory.jsx'));
+const MemberPage = lazy(() => import('./components/groups/MemberPage.jsx'));
+const Binders = lazy(() => import('./components/merch/Binders.jsx'));
 
 // Navigation bar — Groups tab is only visible when logged in as admin
 function NavigationTabs({ user }) {
