@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
-import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
+import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
 
 const arrowStyle = {
   position: 'absolute', top: '50%', transform: 'translateY(-50%)',
@@ -17,30 +17,32 @@ export default function Feed({ user }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [alertMsg, setAlertMsg] = useState(null);
-  
-  const BATCH_SIZE = 9; 
+
+  const BATCH_SIZE = 9;
   const [postLimit, setPostLimit] = useState(BATCH_SIZE);
 
-  const [activeMenuId, setActiveMenuId] = useState(null); 
+  const [activeMenuId, setActiveMenuId] = useState(null);
   const [expandedCaptions, setExpandedCaptions] = useState(new Set());
   const [viewingImage, setViewingImage] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState({});
 
-  const [editingPost, setEditingPost] = useState(null);   
+  const [editingPost, setEditingPost] = useState(null);
   const [editCaption, setEditCaption] = useState('');
   const [editPhotos, setEditPhotos] = useState([]);
   const [editPhotoIndex, setEditPhotoIndex] = useState(0);
   const [isDraggingEdit, setIsDraggingEdit] = useState(false);
+
+  // Replaces the __CONFIRM_DELETE__ string hack
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
     const q = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(postLimit));
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPosts(fetchedPosts);
+      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setHasMore(snapshot.docs.length === postLimit);
       setLoading(false);
     }, (error) => {
@@ -51,14 +53,12 @@ export default function Feed({ user }) {
     return () => unsubscribe();
   }, [postLimit]);
 
-  const fetchMorePosts = () => {
-    setPostLimit(prev => prev + BATCH_SIZE);
-  };
+  const fetchMorePosts = () => setPostLimit(prev => prev + BATCH_SIZE);
 
   const formatPostDate = (timestamp) => {
     if (!timestamp) return 'Just now';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString(undefined, { 
+    return date.toLocaleDateString(undefined, {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
@@ -76,40 +76,37 @@ export default function Feed({ user }) {
 
   const handleDeleteClick = (postId) => {
     setActiveMenuId(null);
-    setAlertMsg("__CONFIRM_DELETE__:" + postId);
+    setConfirmDeleteId(postId);
   };
 
-  const confirmDelete = async (postId) => {
+  const confirmDelete = async () => {
     try {
-      const postToDelete = posts.find(p => p.id === postId);
+      const postToDelete = posts.find(p => p.id === confirmDeleteId);
       if (postToDelete) {
         const urls = postToDelete.imageUrls || (postToDelete.imageUrl ? [postToDelete.imageUrl] : []);
         for (const url of urls) {
           if (url.includes('cloudinary.com')) await deleteCloudinaryImage(url);
         }
       }
-      await deleteDoc(doc(db, "posts", postId)); 
-    } 
-    catch (error) { setAlertMsg("Failed to delete post."); }
+      await deleteDoc(doc(db, "posts", confirmDeleteId));
+    } catch {
+      setAlertMsg("Failed to delete post.");
+    } finally {
+      setConfirmDeleteId(null);
+    }
   };
 
   const handleEditClick = (post) => {
     setActiveMenuId(null);
     setEditingPost(post);
     setEditCaption(post.caption || '');
-    
-    const initialPhotos = (post.imageUrls || (post.imageUrl ? [post.imageUrl] : [])).map(url => ({ url }));
-    setEditPhotos(initialPhotos);
+    setEditPhotos((post.imageUrls || (post.imageUrl ? [post.imageUrl] : [])).map(url => ({ url })));
     setEditPhotoIndex(0);
   };
 
   const handleEditFiles = (files) => {
     if (!files || files.length === 0) return;
-    const newPhotos = Array.from(files).map(file => ({
-      url: URL.createObjectURL(file),
-      file: file 
-    }));
-    setEditPhotos(prev => [...prev, ...newPhotos]);
+    setEditPhotos(prev => [...prev, ...Array.from(files).map(file => ({ url: URL.createObjectURL(file), file }))]);
   };
 
   const handleEditDrop = (e) => {
@@ -132,29 +129,14 @@ export default function Feed({ user }) {
     if (editPhotos.length === 0) return setAlertMsg("Post must have at least one image.");
     setAlertMsg("Saving changes...");
     try {
-      let finalUrls = [];
-      for (let i = 0; i < editPhotos.length; i++) {
-        if (editPhotos[i].file) {
-          const formData = new FormData();
-          const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-          const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-          formData.append('file', editPhotos[i].file);
-          formData.append('upload_preset', uploadPreset);
-          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: 'POST', body: formData
-          });
-          const uploadData = await response.json();
-          if (uploadData.secure_url) finalUrls.push(uploadData.secure_url);
-          else throw new Error("Cloudinary upload failed");
-        } else {
-          finalUrls.push(editPhotos[i].url);
-        }
-      }
+      const finalUrls = await Promise.all(
+        editPhotos.map(photo => photo.file ? uploadToCloudinary(photo.file) : photo.url)
+      );
 
       await updateDoc(doc(db, "posts", editingPost.id), {
         caption: editCaption,
         imageUrls: finalUrls,
-        imageUrl: finalUrls[0] 
+        imageUrl: finalUrls[0],
       });
 
       setEditingPost(null);
@@ -176,18 +158,17 @@ export default function Feed({ user }) {
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem' }}>
-      
+
       <style>{`
         .menu-item { padding: 0.7rem 1rem; cursor: pointer; color: #312527; font-size: 0.9rem; font-weight: 500; transition: background 0.2s; text-align: left; border: none; background: transparent; width: 100%; display: block; }
         .menu-item:hover { background: #D4C4C7; }
         .menu-item.danger { color: #A85A66; }
-        
         .icon-btn:hover { background: rgba(49, 37, 39, 0.7) !important; }
         .del-btn:hover { filter: brightness(0.8); transform: scale(1.05); }
       `}</style>
 
       <ThemeAlert
-        message={alertMsg && !alertMsg.startsWith("__CONFIRM_DELETE__") ? alertMsg : null}
+        message={alertMsg}
         onClose={() => setAlertMsg(null)}
         hideButton={alertMsg === "Saving changes..."}
       />
@@ -196,39 +177,33 @@ export default function Feed({ user }) {
         <div onClick={() => setActiveMenuId(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
       )}
 
-      {alertMsg && alertMsg.startsWith("__CONFIRM_DELETE__") && (() => {
-        const postId = alertMsg.split(":")[1];
-        return (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(49, 37, 39, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-            <div style={{ backgroundColor: '#E6DADD', padding: '1.5rem 2rem', borderRadius: '12px', border: '1px solid #D4C4C7', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '320px', width: '90%' }}>
-              <p style={{ color: '#312527', margin: '0 0 1.5rem 0', fontWeight: '600' }}>Are you sure you want to delete this post?</p>
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-                <button onClick={() => { confirmDelete(postId); setAlertMsg(null); }} style={{ padding: '0.5rem 1.5rem', backgroundColor: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Delete</button>
-                <button onClick={() => setAlertMsg(null)} style={{ padding: '0.5rem 1.5rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-              </div>
+      {/* Confirm Delete Modal */}
+      {confirmDeleteId && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(49, 37, 39, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#E6DADD', padding: '1.5rem 2rem', borderRadius: '12px', border: '1px solid #D4C4C7', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '320px', width: '90%' }}>
+            <p style={{ color: '#312527', margin: '0 0 1.5rem 0', fontWeight: '600' }}>Are you sure you want to delete this post?</p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button onClick={confirmDelete} style={{ padding: '0.5rem 1.5rem', backgroundColor: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Delete</button>
+              <button onClick={() => setConfirmDeleteId(null)} style={{ padding: '0.5rem 1.5rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
+      {/* Image Lightbox */}
       {viewingImage && (() => {
         const urls = viewingImage.imageUrls || (viewingImage.imageUrl ? [viewingImage.imageUrl] : []);
         const idx = currentImageIndex[viewingImage.id] || 0;
-        
         return (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(49, 37, 39, 0.95)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000, padding: '2rem' }} onClick={() => setViewingImage(null)}>
             <button onClick={() => setViewingImage(null)} style={{ position: 'absolute', top: '20px', right: '30px', background: 'transparent', border: 'none', color: 'white', fontSize: '2rem', cursor: 'pointer', zIndex: 10001, padding: '1rem' }}>✕</button>
-            
             <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#D4C4C7', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '550px', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
-              
               <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#8D6E73', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left' }}>{formatPostDate(viewingImage.timestamp)}</p>
-                <p style={{ margin: 0, fontSize: '1.1rem', lineHeight: '1.6', color: '#312527', whiteSpace: 'pre-wrap', textAlign: 'left' }}>{viewingImage.caption}</p>
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#8D6E73', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{formatPostDate(viewingImage.timestamp)}</p>
+                <p style={{ margin: 0, fontSize: '1.1rem', lineHeight: '1.6', color: '#312527', whiteSpace: 'pre-wrap' }}>{viewingImage.caption}</p>
               </div>
-
               <div style={{ position: 'relative', padding: '0 0.5rem 0.5rem 0.5rem' }}>
                 <img src={urls[idx]} alt="Full size" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block', borderRadius: '6px', backgroundColor: '#C2B0B4' }} />
-                
                 {urls.length > 1 && (
                   <>
                     <button className="icon-btn" onClick={(e) => handlePrevImage(viewingImage.id, urls.length, e)} style={{...arrowStyle, left: '15px'}}>
@@ -237,7 +212,7 @@ export default function Feed({ user }) {
                     <button className="icon-btn" onClick={(e) => handleNextImage(viewingImage.id, urls.length, e)} style={{...arrowStyle, right: '15px'}}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
-                    <div style={{ position: 'absolute', bottom: '15px', right: '15px', color: '#FFF', fontSize: '0.85rem', fontWeight: '700', backgroundColor: 'rgba(49, 37, 39, 0.6)', padding: '0.3rem 0.7rem', borderRadius: '20px', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ position: 'absolute', bottom: '15px', right: '15px', color: '#FFF', fontSize: '0.85rem', fontWeight: '700', backgroundColor: 'rgba(49, 37, 39, 0.6)', padding: '0.3rem 0.7rem', borderRadius: '20px', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
                       {idx + 1} / {urls.length}
                     </div>
                   </>
@@ -248,12 +223,13 @@ export default function Feed({ user }) {
         );
       })()}
 
+      {/* Edit Post Modal */}
       {editingPost && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(49, 37, 39, 0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '1rem' }} onClick={() => setEditingPost(null)}>
           <div style={{ backgroundColor: '#E6DADD', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '450px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: 0, color: '#312527', fontSize: '1.4rem' }}>Edit Post</h3>
-            
-            <div 
+
+            <div
               onDragOver={(e) => { e.preventDefault(); setIsDraggingEdit(true); }}
               onDragLeave={(e) => { e.preventDefault(); setIsDraggingEdit(false); }}
               onDrop={handleEditDrop}
@@ -263,10 +239,10 @@ export default function Feed({ user }) {
               {editPhotos.length > 0 ? (
                 <>
                   <img src={editPhotos[editPhotoIndex].url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  
-                  <button 
-                    className="del-btn" 
-                    onClick={handleEditDeletePhoto} 
+
+                  <button
+                    className="del-btn"
+                    onClick={handleEditDeletePhoto}
                     style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#6A585B', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 15, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', backdropFilter: 'blur(4px)' }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -288,13 +264,13 @@ export default function Feed({ user }) {
                       </span>
                     )}
                   </div>
-                  
+
                   {editPhotos.length > 1 && (
                     <>
-                      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setEditPhotoIndex(prev => prev === 0 ? editPhotos.length - 1 : prev - 1) }} style={{...arrowStyle, left: '10px'}}>
+                      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setEditPhotoIndex(prev => prev === 0 ? editPhotos.length - 1 : prev - 1); }} style={{...arrowStyle, left: '10px'}}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                       </button>
-                      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setEditPhotoIndex(prev => prev === editPhotos.length - 1 ? 0 : prev + 1) }} style={{...arrowStyle, right: '10px'}}>
+                      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setEditPhotoIndex(prev => prev === editPhotos.length - 1 ? 0 : prev + 1); }} style={{...arrowStyle, right: '10px'}}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                       </button>
                     </>
@@ -311,9 +287,9 @@ export default function Feed({ user }) {
 
             <div>
               <label style={{ fontSize: '0.8rem', color: '#6A585B', fontWeight: '600', display: 'block', marginBottom: '0.4rem' }}>Caption</label>
-              <textarea 
-                value={editCaption} 
-                onChange={e => setEditCaption(e.target.value)} 
+              <textarea
+                value={editCaption}
+                onChange={e => setEditCaption(e.target.value)}
                 rows="3"
                 style={{ width: '100%', padding: '0.8rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', color: '#312527', outline: 'none', fontSize: '0.95rem', boxSizing: 'border-box', resize: 'vertical' }}
               />
@@ -336,7 +312,7 @@ export default function Feed({ user }) {
           const isExpanded = expandedCaptions.has(post.id);
           const urls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
           const idx = currentImageIndex[post.id] || 0;
-          
+
           return (
             <div key={post.id} style={{ borderRadius: '12px', overflow: 'hidden', backgroundColor: '#D4C4C7', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
@@ -347,7 +323,7 @@ export default function Feed({ user }) {
 
                   {user && (
                     <div style={{ position: 'relative', zIndex: 95 }}>
-                      <button 
+                      <button
                         onClick={() => setActiveMenuId(activeMenuId === post.id ? null : post.id)}
                         style={{ background: 'transparent', color: '#6A585B', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'background 0.2s' }}
                         onMouseOver={(e) => e.currentTarget.style.background = 'rgba(49, 37, 39, 0.1)'}
@@ -370,27 +346,20 @@ export default function Feed({ user }) {
                   )}
                 </div>
 
-                <p style={{ 
-                  margin: 0, 
-                  fontSize: '0.95rem', 
-                  lineHeight: '1.5', 
-                  color: '#312527',
-                  whiteSpace: 'pre-wrap',
+                <p style={{
+                  margin: 0, fontSize: '0.95rem', lineHeight: '1.5', color: '#312527', whiteSpace: 'pre-wrap',
                   display: isExpanded ? 'block' : '-webkit-box',
-                  WebkitLineClamp: isExpanded ? 'unset' : 3, 
+                  WebkitLineClamp: isExpanded ? 'unset' : 3,
                   WebkitBoxOrient: 'vertical',
                   overflow: isExpanded ? 'visible' : 'hidden'
                 }}>
                   {post.caption}
                 </p>
-                
+
                 {post.caption && post.caption.length > 100 && (
-                  <button 
+                  <button
                     onClick={() => toggleCaption(post.id)}
-                    style={{ 
-                      background: 'none', border: 'none', color: '#8D6E73', fontWeight: 'bold', 
-                      padding: '0.5rem 0 0 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.85rem' 
-                    }}
+                    style={{ background: 'none', border: 'none', color: '#8D6E73', fontWeight: 'bold', padding: '0.5rem 0 0 0', cursor: 'pointer', textAlign: 'left', fontSize: '0.85rem' }}
                   >
                     {isExpanded ? 'Show less' : 'Read more...'}
                   </button>
@@ -398,13 +367,13 @@ export default function Feed({ user }) {
               </div>
 
               <div style={{ position: 'relative', padding: '0 0.5rem 0.5rem 0.5rem', marginTop: 'auto' }}>
-                <img 
-                  src={urls[idx]} 
-                  alt="Feed post" 
+                <img
+                  src={urls[idx]}
+                  alt="Feed post"
                   onClick={() => setViewingImage(post)}
-                  style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block', borderRadius: '6px', cursor: 'zoom-in', backgroundColor: '#C2B0B4' }} 
+                  style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block', borderRadius: '6px', cursor: 'zoom-in', backgroundColor: '#C2B0B4' }}
                 />
-                
+
                 {urls.length > 1 && (
                   <>
                     <button className="icon-btn" onClick={(e) => handlePrevImage(post.id, urls.length, e)} style={{...arrowStyle, left: '15px'}}>
@@ -419,7 +388,6 @@ export default function Feed({ user }) {
                   </>
                 )}
               </div>
-
             </div>
           );
         })}
