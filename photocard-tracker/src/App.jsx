@@ -5,7 +5,8 @@ import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { AuthProvider } from './context/AuthContext';
 import BinderPage from './components/merch/BinderPage';
-import { useUserProfile } from './hooks/useUserProfile'; // <-- IMPORT ADDED HERE
+import { useUserProfile } from './hooks/useUserProfile';
+import Footer from './components/ui/Footer';
 
 const Profile = lazy(() => import('./components/user/Profile.jsx'));
 const AddMerch = lazy(() => import('./components/merch/AddMerch.jsx'));
@@ -20,6 +21,8 @@ const ArtistDirectory = lazy(() => import('./components/groups/ArtistDirectory.j
 const MemberPage = lazy(() => import('./components/groups/MemberPage.jsx'));
 const Binders = lazy(() => import('./components/merch/Binders.jsx'));
 const Collectors = lazy(() => import('./components/user/Collectors.jsx'));
+
+
 
 function NavigationTabs({ user, canEdit, profileData }) {
   const location = useLocation();
@@ -216,6 +219,7 @@ function App() {
           </Suspense>
         </div>
       </main>
+      <Footer user={user} />
     </Router>
     </AuthProvider>
   );
