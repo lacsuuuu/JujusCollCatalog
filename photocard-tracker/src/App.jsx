@@ -44,11 +44,11 @@ function NavigationTabs({ user, canEdit, profileData }) {
 
   return (
     <nav className="nav-container">
-      {user && profileData?.username && ( 
-        <Link to={`/profile/${profileData.username}`} style={getTabStyle('/profile', true)}> 
-          Profile 
-        </Link>
-      )}
+      {user && (
+          <Link to={profileData?.username ? `/profile/${profileData.username}` : '/feed'} style={getTabStyle('/profile', true)}>
+            Profile
+          </Link>
+        )}
       <Link to="/collectors" style={getTabStyle('/collectors')}>Community</Link>
       <Link to="/gallery" style={getTabStyle('/gallery')}>Catalog</Link>
       <Link to="/binders" style={getTabStyle('/binders')}>Binders</Link>
@@ -189,7 +189,7 @@ function App() {
             <Route path="/collectors" element={<Collectors />} />
             <Route path="/gallery" element={
               <div>
-                {user && <AddMerch />}
+                {canEdit && <AddMerch />}
                 <MerchGallery user={user} />
               </div>
             } />

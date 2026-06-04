@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
-import { doc, updateDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
 import imageCompression from 'browser-image-compression';
 import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
 import CustomSelect from '../ui/CustomSelect';
@@ -51,6 +51,7 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
   const isAdmin = role === 'admin';
   const isCollab = role === 'collaborator';
   const canEdit = isAdmin || (isCollab && isCreator);
+  const [submitterName, setSubmitterName] = useState('Unknown');
 
   useEffect(() => {
     setEditedItem(item);
@@ -58,9 +59,18 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
     setFrontFile(null);
     setBackFile(null);
     setGroupDocId(null);
+    setSubmitterName('Unknown');
     if (item?.groupName) {
       getDocs(query(collection(db, 'groups'), where('name', '==', item.groupName)))
         .then(snap => { if (!snap.empty) setGroupDocId(snap.docs[0].id); });
+    }
+
+    if (item?.userId) {
+      getDoc(doc(db, 'profile', item.userId)).then(snap => {
+        if (snap.exists()) {
+          setSubmitterName(snap.data().username || snap.data().name || 'Unknown');
+        }
+      }).catch(err => console.error(err));
     }
   }, [item]);
 
@@ -231,7 +241,8 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
 
         <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
           
-          <div style={{ display: 'flex', gap: '1rem', flex: '1.5 1 300px', minWidth: 0, justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: '1.5 1 300px', minWidth: 0, justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
             {isPhotocard ? (
               <div style={{ position: 'relative', width: '100%', maxWidth: 'calc(50% - 0.5rem)', aspectRatio: '63 / 100', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#D4C4C7', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', flexShrink: 0 }}>
                 {frontImgSrc ? (
@@ -296,6 +307,20 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
                   )
                 )}
               </div>
+            )}
+
+          </div>
+
+            {submitterName && submitterName !== 'Unknown' && (
+              <span style={{
+                fontSize: '0.78rem',
+                color: '#A08D90',
+                fontStyle: 'italic',
+                letterSpacing: '0.02em',
+              }}>
+                submitted by{' '}
+                <span style={{ color: '#8D6E73', fontWeight: '600' }}>@{submitterName}</span>
+              </span>
             )}
           </div>
 

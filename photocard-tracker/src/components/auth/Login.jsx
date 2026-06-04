@@ -233,10 +233,10 @@ export default function Login() {
         const usernameSnap = await getDoc(doc(db, 'usernames', identifier.toLowerCase()));
         loginEmail = usernameSnap.exists() ? usernameSnap.data().email : `${identifier}@admin.local`;
       }
-      // Save the credential to grab the user ID
       const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
-      // Redirect directly to their profile
-      navigate(`/profile/${userCred.user.uid}`);
+      const profileSnap = await getDoc(doc(db, 'profile', userCred.user.uid));
+      const uname = profileSnap.exists() ? profileSnap.data().username : null;
+      navigate(uname ? `/profile/${uname}` : '/feed');
     } catch {
       setAlertMsg('Invalid credentials.');
     }
@@ -272,10 +272,10 @@ export default function Login() {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const profileSnap = await getDoc(doc(db, 'profile', result.user.uid));
-      if (profileSnap.exists()) {
-        // Redirect directly to their profile
-        navigate(`/profile/${result.user.uid}`);
+      if (profileSnap.exists() && profileSnap.data().username) {
+        navigate(`/profile/${profileSnap.data().username}`);
       } else {
+        // No profile or username missing — show setup screen
         setGoogleUser(result.user);
         setMode('google-setup');
       }
@@ -299,11 +299,10 @@ export default function Login() {
         email: googleUser.email,
         role: accountType === 'collaborator' ? 'pending_collaborator' : 'user',
         createdAt: new Date()
-      });
+      }, { merge: true });
       await batch.commit();
       
-      // Redirect directly to their new profile
-      navigate(`/profile/${googleUser.uid}`);
+      navigate(`/profile/${username}`);
     } catch (error) {
       setAlertMsg(error.message);
     }

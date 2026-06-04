@@ -24,19 +24,32 @@ export default function UserSearch() {
 
       setIsSearching(true);
       try {
-        // Prefix search query limited to 10 results
-        const q = query(
-          collection(db, 'profile'),
-          where('name', '>=', trimmedTerm),
-          where('name', '<=', trimmedTerm + '\uf8ff'),
-          limit(10)
-        );
-        
-        const snap = await getDocs(q);
-        const results = snap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const [usernameSnap, displayNameSnap] = await Promise.all([
+          getDocs(query(
+            collection(db, 'profile'),
+            where('username', '>=', trimmedTerm),
+            where('username', '<=', trimmedTerm + '\uf8ff'),
+            limit(10)
+          )),
+          getDocs(query(
+            collection(db, 'profile'),
+            where('displayName', '>=', trimmedTerm),
+            where('displayName', '<=', trimmedTerm + '\uf8ff'),
+            limit(10)
+          )),
+        ]);
+
+        // Merge and deduplicate by doc ID
+        const seen = new Set();
+        const results = [];
+        for (const snap of [usernameSnap, displayNameSnap]) {
+          for (const d of snap.docs) {
+            if (!seen.has(d.id)) {
+              seen.add(d.id);
+              results.push({ id: d.id, ...d.data() });
+            }
+          }
+        }
         
         setFilteredResults(results);
         setIsOpen(true);
@@ -66,10 +79,10 @@ export default function UserSearch() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelectUser = (userId) => {
+  const handleSelectUser = (profile) => {
     setSearchTerm('');
     setIsOpen(false);
-    navigate(`/profile/${userId}`);
+    navigate(`/profile/${profile.username}`);
   };
 
   return (
@@ -117,7 +130,7 @@ export default function UserSearch() {
             filteredResults.map(profile => (
               <div 
                 key={profile.id}
-                onClick={() => handleSelectUser(profile.id)}
+                onClick={() => handleSelectUser(profile)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
                   cursor: 'pointer', borderBottom: '1px solid #E6DADD', transition: 'background-color 0.2s'
@@ -131,10 +144,10 @@ export default function UserSearch() {
                   style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ color: '#312527', fontWeight: 'bold', fontSize: '0.95rem' }}>{profile.name}</span>
-                  <span style={{ color: '#8D6E73', fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '250px' }}>
-                    {profile.bio || "Collector"}
-                  </span>
+                  {profile.displayName && (
+                    <span style={{ color: '#312527', fontWeight: 'bold', fontSize: '0.95rem' }}>{profile.displayName}</span>
+                  )}
+                  <span style={{ color: '#8D6E73', fontSize: '0.75rem' }}>@{profile.username}</span>
                 </div>
               </div>
             ))

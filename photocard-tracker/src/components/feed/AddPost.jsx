@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { db } from '../../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 import { compressAndUpload } from '../../utils/cloudinaryUtils';
 
@@ -24,7 +24,7 @@ const arrowStyle = {
   transition: 'background 0.2s', zIndex: 10
 };
 
-export default function AddPost() {
+export default function AddPost({ user }) {
   const [photos, setPhotos] = useState([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [caption, setCaption] = useState('');
@@ -68,15 +68,32 @@ export default function AddPost() {
   const handleUpload = async (e) => {
     e.preventDefault();
     if (photos.length === 0) return setAlertMsg("Please select at least one image!");
+    if (!user) return setAlertMsg("You must be logged in to post.");
     setLoading(true);
 
     try {
       const uploadedUrls = await Promise.all(photos.map(p => compressAndUpload(p.file)));
 
+      // Fetch the poster's username from their profile
+      let username = 'Unknown';
+      let displayName = '';
+      try {
+        const profileSnap = await getDoc(doc(db, 'profile', user.uid));
+        if (profileSnap.exists()) {
+          username = profileSnap.data().username || 'Unknown';
+          displayName = profileSnap.data().displayName || '';
+        }
+      } catch (err) {
+        console.warn("Could not fetch username:", err);
+      }
+
       await addDoc(collection(db, "posts"), {
         caption,
         imageUrls: uploadedUrls,
         timestamp: new Date(),
+        userId: user.uid,
+        username,
+        displayName,
       });
 
       setAlertMsg("Post published to feed!");
