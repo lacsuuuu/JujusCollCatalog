@@ -8,16 +8,20 @@ import CustomSelect from '../ui/CustomSelect';
 
 
 const pcTypeOptions = [
-  { value: 'Album', label: 'Album' }, { value: 'POB', label: 'POB' },
-  { value: 'Merch', label: 'Merch' }, { value: 'LD', label: 'LD' },
-  { value: 'Mini', label: 'Mini' }, { value: 'Lenticular', label: 'Lenticular' },
-  { value: 'Fansign', label: 'Fansign' }, { value: 'Broadcast', label: 'Broadcast' },
-  { value: 'TC', label: 'TC' }, { value: 'Special/Yearbook', label: 'Special / Yearbook' },
-  { value: 'True Polaroids', label: 'True Polaroids' }, { value: 'Polaroid-like', label: 'Polaroid-like' }
+  { value: 'Album', label: 'Album' },
+  { value: 'POB', label: 'POB' },
+  { value: 'Merch', label: 'Merch' },
+  { value: 'Brand', label: 'Brand' },
+  { value: 'Magazine', label: 'Magazine' },
+  { value: 'Polaroid', label: 'Polaroid' },
 ];
 
 const pcFinishOptions = [
-  { value: 'Matte', label: 'Matte' }, { value: 'Glossy', label: 'Glossy' }
+  { value: 'Glossy', label: 'Glossy' },
+  { value: 'Matte', label: 'Matte' },
+  { value: 'Holographic', label: 'Holographic' },
+  { value: 'Lenticular', label: 'Lenticular' },
+  { value: 'Glitter', label: 'Glitter' },
 ];
 
 const statusOptions = [

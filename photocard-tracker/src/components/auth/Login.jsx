@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../../firebase';
 import {
@@ -9,11 +9,11 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from 'firebase/auth';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 import { useAuth } from '../../context/AuthContext';
+import { useUserProfile } from '../../hooks/useUserProfile';
 
-// ─── Shared styles injected once ────────────────────────────────────────────
 const LOGIN_STYLES = `
   .login-input {
     padding: 0.65rem 1rem;
@@ -153,9 +153,108 @@ const LOGIN_STYLES = `
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
+
+  /* ── Toggle switch ── */
+  .collab-toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .collab-toggle input { opacity: 0; width: 0; height: 0; }
+  .collab-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background-color: #D4C4C7;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .collab-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 3px; top: 3px;
+    background-color: #FFFFFF;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+  }
+  .collab-toggle input:checked + .collab-toggle-slider { background-color: #8D6E73; }
+  .collab-toggle input:checked + .collab-toggle-slider::before { transform: translateX(16px); }
+
+  /* ── Admin modal ── */
+  .admin-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(49, 37, 39, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .admin-modal {
+    background-color: #FFFFFF;
+    border-radius: 14px;
+    border: 1px solid #D4C4C7;
+    box-shadow: 0 8px 30px rgba(49, 37, 39, 0.18);
+    width: 100%;
+    max-width: 460px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .admin-modal-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #F0E8EA;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .admin-modal-body {
+    overflow-y: auto;
+    padding: 1rem 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .admin-modal-body::-webkit-scrollbar { width: 6px; }
+  .admin-modal-body::-webkit-scrollbar-track { background: transparent; }
+  .admin-modal-body::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
+  .admin-user-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background-color: #FAF6F7;
+    border: 1px solid #EDE4E6;
+  }
+  .admin-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #A89396;
+    margin: 0.5rem 0 0.25rem 0;
+  }
+  .admin-close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #A89396;
+    display: flex;
+    align-items: center;
+    padding: 0.2rem;
+    border-radius: 4px;
+    transition: color 0.2s;
+  }
+  .admin-close-btn:hover { color: #312527; }
 `;
 
-// ─── SVG Icons ───────────────────────────────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────────────────────
 const EyeOpenIcon = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -201,14 +300,139 @@ const PasswordInput = ({ value, onChange, placeholder = 'Password', showPassword
   </div>
 );
 
+// ─── Admin Modal ──────────────────────────────────────────────────────────────
+function AdminModal({ onClose }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(null);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const snap = await getDocs(query(
+        collection(db, 'profile'),
+        where('role', 'in', ['pending_collaborator', 'collaborator'])
+      ));
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    };
+    fetch();
+  }, []);
+
+  const toggleCollaborator = async (userId, currentRole) => {
+    const newRole = currentRole === 'collaborator' ? 'user' : 'collaborator';
+    setProcessing(userId);
+    await updateDoc(doc(db, 'profile', userId), { role: newRole });
+    setUsers(prev => prev
+      .map(u => u.id === userId ? { ...u, role: newRole } : u)
+      .filter(u => u.role !== 'user') // remove from list once revoked
+    );
+    setProcessing(null);
+  };
+
+  const pending = users.filter(u => u.role === 'pending_collaborator');
+  const approved = users.filter(u => u.role === 'collaborator');
+
+  return (
+    <div className="admin-modal-backdrop" onClick={onClose}>
+      <div className="admin-modal" onClick={e => e.stopPropagation()}>
+        <div className="admin-modal-header">
+          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#312527' }}>Collaborators</h3>
+            <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.78rem', color: '#A89396' }}>Toggle to approve or revoke access</p>
+          </div>
+          <button className="admin-close-btn" onClick={onClose} style={{ alignSelf: 'flex-start', marginTop: '0.1rem' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="admin-modal-body">
+          {loading ? (
+            <p style={{ color: '#A89396', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem 0' }}>Loading...</p>
+          ) : (
+            <>
+              {/* Pending */}
+              {pending.length > 0 && (
+                <>
+                  <p className="admin-section-label">
+                    Pending requests
+                    <span style={{ marginLeft: '0.4rem', backgroundColor: '#A85A66', color: '#FFF', borderRadius: '10px', padding: '0.1rem 0.4rem', fontSize: '0.68rem' }}>
+                      {pending.length}
+                    </span>
+                  </p>
+                  {pending.map(u => (
+                    <UserRow key={u.id} u={u} processing={processing} onToggle={toggleCollaborator} />
+                  ))}
+                </>
+              )}
+
+              {/* Approved */}
+              {approved.length > 0 && (
+                <>
+                  <p className="admin-section-label" style={{ marginTop: pending.length > 0 ? '0.75rem' : 0 }}>
+                    Active collaborators
+                  </p>
+                  {approved.map(u => (
+                    <UserRow key={u.id} u={u} processing={processing} onToggle={toggleCollaborator} />
+                  ))}
+                </>
+              )}
+
+              {pending.length === 0 && approved.length === 0 && (
+                <p style={{ color: '#A89396', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem 0' }}>
+                  No pending or active collaborators.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserRow({ u, processing, onToggle }) {
+  const isCollaborator = u.role === 'collaborator';
+  return (
+    <div className="admin-user-row">
+      <img
+        src={u.avatarUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23C2B0B4'/%3E%3C/svg%3E"}
+        alt={u.name}
+        style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #E6DADD', flexShrink: 0 }}
+        onError={e => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23C2B0B4'/%3E%3C/svg%3E"; }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontWeight: '700', fontSize: '0.88rem', color: '#312527', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {u.name || u.username || 'Unnamed'}
+        </p>
+        {u.username && (
+          <p style={{ margin: 0, fontSize: '0.75rem', color: '#8D6E73' }}>@{u.username}</p>
+        )}
+      </div>
+      <label className="collab-toggle" title={isCollaborator ? 'Revoke collaborator' : 'Approve as collaborator'}>
+        <input
+          type="checkbox"
+          checked={isCollaborator}
+          disabled={processing === u.id}
+          onChange={() => onToggle(u.id, u.role)}
+        />
+        <span className="collab-toggle-slider" />
+      </label>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Login() {
   const { currentUser, loading } = useAuth();
+  const { profileData } = useUserProfile(currentUser?.uid);
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('login');
   const [alertMsg, setAlertMsg] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
 
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
@@ -233,10 +457,8 @@ export default function Login() {
         const usernameSnap = await getDoc(doc(db, 'usernames', identifier.toLowerCase()));
         loginEmail = usernameSnap.exists() ? usernameSnap.data().email : `${identifier}@admin.local`;
       }
-      const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
-      const profileSnap = await getDoc(doc(db, 'profile', userCred.user.uid));
-      const uname = profileSnap.exists() ? profileSnap.data().username : null;
-      navigate(uname ? `/profile/${uname}` : '/feed');
+      await signInWithEmailAndPassword(auth, loginEmail, password);
+      navigate('/');
     } catch {
       setAlertMsg('Invalid credentials.');
     }
@@ -255,9 +477,7 @@ export default function Login() {
       const batch = writeBatch(db);
       batch.set(doc(db, 'usernames', username.toLowerCase()), { uid: cred.user.uid, email: email.toLowerCase() });
       batch.set(doc(db, 'profile', cred.user.uid), {
-        username,
-        name: username,
-        email,
+        username, name: username, email,
         role: accountType === 'collaborator' ? 'pending_collaborator' : 'user',
         createdAt: new Date()
       });
@@ -272,10 +492,9 @@ export default function Login() {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const profileSnap = await getDoc(doc(db, 'profile', result.user.uid));
-      if (profileSnap.exists() && profileSnap.data().username) {
-        navigate(`/profile/${profileSnap.data().username}`);
+      if (profileSnap.exists()) {
+        navigate('/');
       } else {
-        // No profile or username missing — show setup screen
         setGoogleUser(result.user);
         setMode('google-setup');
       }
@@ -294,15 +513,13 @@ export default function Login() {
       const batch = writeBatch(db);
       batch.set(doc(db, 'usernames', username.toLowerCase()), { uid: googleUser.uid, email: googleUser.email });
       batch.set(doc(db, 'profile', googleUser.uid), {
-        username,
-        name: googleUser.displayName || username,
+        username, name: googleUser.displayName || username,
         email: googleUser.email,
         role: accountType === 'collaborator' ? 'pending_collaborator' : 'user',
         createdAt: new Date()
-      }, { merge: true });
+      });
       await batch.commit();
-      
-      navigate(`/profile/${username}`);
+      navigate('/');
     } catch (error) {
       setAlertMsg(error.message);
     }
@@ -325,15 +542,32 @@ export default function Login() {
       <div style={{ textAlign: 'center', padding: '3rem', color: '#312527' }}>
         <style>{LOGIN_STYLES}</style>
         <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
-        <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: '#6A585B' }}>
-          You're logged in.
-        </p>
-        <button
-          onClick={handleLogout}
-          style={{ padding: '0.55rem 2rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}
-        >
-          Log out
-        </button>
+
+        {showAdminModal && <AdminModal onClose={() => setShowAdminModal(false)} />}
+
+        <p style={{ marginBottom: '0.25rem', fontSize: '0.9rem', color: '#6A585B' }}>You're logged in.</p>
+        {!currentUser.emailVerified && !currentUser.email.includes('@admin.local') && (
+          <p style={{ color: '#A85A66', fontSize: '0.82rem', marginBottom: '1rem', fontWeight: '600' }}>
+            Please verify your email address to access all features.
+          </p>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', marginTop: '1rem' }}>
+          {profileData?.role === 'admin' && (
+            <button
+              onClick={() => setShowAdminModal(true)}
+              style={{ padding: '0.55rem 2rem', backgroundColor: '#8D6E73', color: '#FFFFFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+            >
+              ⚙ Manage Collaborators
+            </button>
+          )}
+          <button
+            onClick={handleLogout}
+            style={{ padding: '0.55rem 2rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}
+          >
+            Log out
+          </button>
+        </div>
       </div>
     );
   }

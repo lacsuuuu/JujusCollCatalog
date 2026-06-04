@@ -62,7 +62,7 @@ function NavigationTabs({ user, canEdit, profileData }) {
       {/* SECURITY FIX: Only render Manage tab if the user has edit permissions */}
       {canEdit && <Link to="/manage" style={getTabStyle('/manage')}>Manage</Link>}
       
-      <Link className="admin-link" to="/admin" style={{ padding: '1rem 0', color: '#6A585B', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '700', flexShrink: 0, whiteSpace: 'nowrap' }}>
+      <Link className="admin-link" to="/login" style={{ padding: '1rem 0', color: '#6A585B', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '700', flexShrink: 0, whiteSpace: 'nowrap' }}>
         {user ? 'Logout' : 'Login'}
       </Link>
     </nav>
@@ -209,12 +209,11 @@ function App() {
             <Route path="/artists" element={<ArtistDirectory user={user} />} />
             <Route path="/artist/:groupId/:memberName" element={<MemberPage />} />
             
-            {/* SECURITY FIX: Route protection for /manage */}
             <Route path="/manage" element={
               canEdit ? <GroupManager /> : (user ? <Navigate to="/groups" replace /> : <Login user={user} />)
             } />
             
-            <Route path="/admin" element={<Login user={user} />} />
+           <Route path="/login" element={<Login user={user} />} />
           </Routes>
           </Suspense>
         </div>

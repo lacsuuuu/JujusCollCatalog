@@ -24,7 +24,7 @@ export default function MemberPage() {
   const [lastVisible, setLastVisible] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingCards, setLoadingCards] = useState(false);
-  const BATCH_SIZE = 12;
+  const BATCH_SIZE = 15;
 
   const [alertMsg, setAlertMsg] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -100,7 +100,6 @@ export default function MemberPage() {
       
     } catch (e) {
       console.error("Error fetching items:", e);
-      // Fallback query without orderBy if index is missing
       if (e.message.includes('index')) {
           console.warn("Missing index for orderBy, falling back to unordered paginated query.");
           let fallbackQ = query(
@@ -173,12 +172,10 @@ export default function MemberPage() {
     try {
       setAlertMsg("Uploading photos and saving...");
 
-      // Upload profile image if a new file was selected
       const finalProfileImageUrl = editForm.profileImageFile
         ? await uploadToCloudinary(editForm.profileImageFile)
         : editForm.profileImageUrl || '';
 
-      // Upload any new concept photos, keep existing URLs as-is
       const finalPhotos = await Promise.all(
         (editForm.conceptPhotos || []).map(photo =>
           photo.file
@@ -223,20 +220,23 @@ export default function MemberPage() {
 
   const officialEras = data.groupEras || [];
 
-  const groupedPhotocards = {};
-  photocards.forEach(card => {
-    const era = card.era || 'Unknown Era';
-    if (!groupedPhotocards[era]) groupedPhotocards[era] = [];
-    groupedPhotocards[era].push(card);
-  });
+  const sortedPhotocards = [...photocards].sort((a, b) => {
+    const eraA = a.era || 'Unknown Era';
+    const eraB = b.era || 'Unknown Era';
+    const indexA = officialEras.indexOf(eraA);
+    const indexB = officialEras.indexOf(eraB);
 
-  const sortedEras = Object.keys(groupedPhotocards).sort((a, b) => {
-    const indexA = officialEras.indexOf(a);
-    const indexB = officialEras.indexOf(b);
-    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-    if (indexA !== -1) return -1;
-    if (indexB !== -1) return 1;
-    return a.localeCompare(b);
+    let eraComparison = 0;
+    if (indexA !== -1 && indexB !== -1) eraComparison = indexA - indexB;
+    else if (indexA !== -1) eraComparison = -1;
+    else if (indexB !== -1) eraComparison = 1;
+    else eraComparison = eraA.localeCompare(eraB);
+
+    if (eraComparison !== 0) return eraComparison;
+
+    const dateA = a.releaseDate ? (a.releaseDate.toDate ? a.releaseDate.toDate() : new Date(a.releaseDate)) : new Date(0);
+    const dateB = b.releaseDate ? (b.releaseDate.toDate ? b.releaseDate.toDate() : new Date(b.releaseDate)) : new Date(0);
+    return dateB - dateA;
   });
 
   return (
@@ -285,7 +285,6 @@ export default function MemberPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div className="hero-layout" style={{ display: 'flex', gap: '2rem', height: '500px' }}>
-
           <div className="hero-img-box" style={{ flex: 1, backgroundColor: '#D4C4C7', borderRadius: '12px', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}
                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (isEditing) setDragging(true); }}>
 
@@ -467,62 +466,66 @@ export default function MemberPage() {
         {!isEditing && (
           <div style={{ borderTop: '2px solid #D4C4C7', paddingTop: '2rem' }}>
             <h3 style={{ color: '#312527', fontSize: '1.4rem', marginBottom: '2rem' }}>Cards in Catalog</h3>
-            {photocards.length > 0 ? (
+            {sortedPhotocards.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-                {sortedEras.map(era => (
-                  <div key={era}>
-                    <h4 style={{ margin: '0 0 1rem 0', paddingLeft: '0.5rem', borderLeft: '4px solid #8D6E73', fontSize: '1.1rem', color: '#8D6E73', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      {era} <span style={{ color: '#6A585B', fontWeight: '400', fontSize: '0.85rem', textTransform: 'none' }}>— {groupedPhotocards[era].length} items</span>
-                    </h4>
-                    <div className="merch-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.2rem' }}>
-                      {groupedPhotocards[era].map(card => {
-                        const isPhotocard = (card.category || "").toLowerCase() === 'photocard';
-                        const hasBackprint = isPhotocard && card.backImageUrl;
-                        const fitStyle = isPhotocard ? 'cover' : 'contain';
-                        const positionStyle = isPhotocard ? 'top' : 'center';
-                        const innerBgColor = isPhotocard ? 'transparent' : '#FFFFFF';
+                <div className="merch-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.2rem' }}>
+                  {sortedPhotocards.map(card => {
+                    const isPhotocard = (card.category || "").toLowerCase() === 'photocard';
+                    const hasBackprint = isPhotocard && card.backImageUrl;
+                    const fitStyle = isPhotocard ? 'cover' : 'contain';
+                    const positionStyle = isPhotocard ? 'top' : 'center';
+                    const innerBgColor = isPhotocard ? 'transparent' : '#FFFFFF';
 
-                        return (
-                          <div key={card.id} className="merch-card" style={{ borderRadius: '12px', backgroundColor: '#D4C4C7', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                            <div onClick={() => setSelectedItem(card)} style={{ cursor: 'pointer', width: '100%', aspectRatio: '1 / 1.4', padding: '0.6rem', boxSizing: 'border-box', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {hasBackprint ? (
-                                <div className="flip-container" style={{ width: '100%', height: '100%' }}>
-                                  <div className="flipper" style={{ width: '100%', height: '100%' }}>
-                                    <div className="front" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
-                                      <img src={card.imageUrl} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
-                                    </div>
-                                    <div className="back" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
-                                      <img src={card.backImageUrl} alt={`${card.customName} back`} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: innerBgColor }}>
+                    return (
+                      <div key={card.id} className="merch-card" style={{ borderRadius: '12px', backgroundColor: '#D4C4C7', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                        <div onClick={() => setSelectedItem(card)} style={{ cursor: 'pointer', width: '100%', aspectRatio: '1 / 1.4', padding: '0.6rem', boxSizing: 'border-box', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {hasBackprint ? (
+                            <div className="flip-container" style={{ width: '100%', height: '100%' }}>
+                              <div className="flipper" style={{ width: '100%', height: '100%' }}>
+                                <div className="front" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
                                   <img src={card.imageUrl} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
                                 </div>
-                              )}
+                                <div className="back" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
+                                  <img src={card.backImageUrl} alt={`${card.customName} back`} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
+                                </div>
+                              </div>
                             </div>
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: innerBgColor }}>
+                              <img src={card.imageUrl} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
+                            </div>
+                          )}
+                        </div>
 
-                            <div style={{ padding: '0.2rem 0.6rem 0.8rem 0.6rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', flexGrow: 1, gap: '0.1rem' }}>
-                              <span style={{ fontSize: '0.65rem', color: '#8D6E73', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 'bold' }}>{card.category}</span>
-                              <h4 style={{ margin: '0.1rem 0 0 0', fontSize: '1.1rem', color: '#312527', fontWeight: '700', cursor: 'pointer', lineHeight: '1.2' }} onClick={() => setSelectedItem(card)}>{card.memberName}</h4>
-                              <p style={{ margin: '0 0 0.4rem 0', color: '#6A585B', fontSize: '0.85rem' }}>{card.groupName}{card.era ? ` • ${card.era}` : ''}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                        <div style={{ padding: '0.2rem 0.6rem 0.8rem 0.6rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', flexGrow: 1, gap: '0.1rem' }}>
+                          <span style={{ fontSize: '0.65rem', color: '#8D6E73', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 'bold' }}>{card.category}</span>
+                          <h4 style={{ margin: '0.1rem 0 0 0', fontSize: '1.1rem', color: '#312527', fontWeight: '700', cursor: 'pointer', lineHeight: '1.2' }} onClick={() => setSelectedItem(card)}>{card.memberName}</h4>
+                          <p style={{ margin: '0 0 0.4rem 0', color: '#6A585B', fontSize: '0.85rem' }}>{card.groupName}{card.era ? ` • ${card.era}` : ''}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 
                 {hasMore && (
-                  <button 
-                    onClick={loadMoreItems} 
-                    disabled={loadingCards}
-                    style={{ alignSelf: 'center', padding: '0.6rem 2rem', backgroundColor: 'transparent', border: '2px solid #8D6E73', borderRadius: '20px', color: '#8D6E73', cursor: loadingCards ? 'not-allowed' : 'pointer', fontWeight: 'bold', marginTop: '1rem' }}
-                  >
-                    {loadingCards ? 'Loading...' : 'Load More Cards'}
-                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
+                    <button 
+                      onClick={loadMoreItems} 
+                      disabled={loadingCards}
+                      style={{
+                        padding: '0.75rem 2rem',
+                        backgroundColor: loadingCards ? '#D4C4C7' : '#8D6E73',
+                        color: '#FFF',
+                        border: 'none',
+                        borderRadius: '30px',
+                        fontWeight: 'bold',
+                        cursor: loadingCards ? 'not-allowed' : 'pointer',
+                        transition: 'background-color 0.2s'
+                      }}
+                    >
+                      {loadingCards ? 'Loading...' : 'Load More Cards'}
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
