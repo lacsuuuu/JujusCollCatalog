@@ -1,9 +1,12 @@
 import { lazy, Suspense } from 'react';
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { AuthProvider } from './context/AuthContext';
+import BinderPage from './components/merch/BinderPage';
+
+
 const Profile = lazy(() => import('./components/user/Profile.jsx'));
 const AddMerch = lazy(() => import('./components/merch/AddMerch.jsx'));
 const MerchGallery = lazy(() => import('./components/merch/MerchGallery.jsx'));
@@ -16,28 +19,42 @@ const GroupPage = lazy(() => import('./components/groups/GroupPage.jsx'));
 const ArtistDirectory = lazy(() => import('./components/groups/ArtistDirectory.jsx'));
 const MemberPage = lazy(() => import('./components/groups/MemberPage.jsx'));
 const Binders = lazy(() => import('./components/merch/Binders.jsx'));
+const Collectors = lazy(() => import('./components/user/Collectors.jsx'));
 
-// Navigation bar — Groups tab is only visible when logged in as admin
+// Navigation bar 
 function NavigationTabs({ user }) {
   const location = useLocation();
 
-  const getTabStyle = (path) => ({
+  const isTabActive = (path, isDynamic = false) => {
+    if (isDynamic) {
+      return location.pathname.startsWith(path);
+    }
+    return location.pathname === path;
+  };
+
+  // 2. Use it inside getTabStyle
+  const getTabStyle = (path, isDynamic = false) => ({
     padding: '1rem 0',
     textDecoration: 'none',
-    color: location.pathname === path ? '#312527' : '#6A585B',
-    borderBottom: location.pathname === path ? '3px solid #8D6E73' : '3px solid transparent',
+    color: isTabActive(path, isDynamic) ? '#312527' : '#6A585B',
+    borderBottom: isTabActive(path, isDynamic) ? '3px solid #8D6E73' : '3px solid transparent',
     fontWeight: '700',
     transition: 'color 0.2s ease',
-    whiteSpace: 'nowrap', // Prevents text from breaking onto two lines
-    flexShrink: 0         // Prevents tabs from squishing together
+    whiteSpace: 'nowrap', 
+    flexShrink: 0         
   });
 
   return (
-    // Replaced inline styles with the "nav-container" class for responsive control
     <nav className="nav-container">
-      <Link to="/" style={getTabStyle('/')}>Profile</Link>
+      {/* Conditionally render Profile tab with dynamic ID if user is logged in */}
+      {user && ( 
+        <Link to={`/profile/${user.uid}`} style={getTabStyle('/profile', true)}> 
+          Profile 
+        </Link>
+      )}
+            <Link to="/collectors" style={getTabStyle('/collectors')}>Community</Link>
       <Link to="/gallery" style={getTabStyle('/gallery')}>Catalog</Link>
-      <Link to="/binders" style={getTabStyle('/binders')}>Binders</Link> {/* NEW TAB */}
+      <Link to="/binders" style={getTabStyle('/binders')}>Binders</Link>
       <Link to="/feed" style={getTabStyle('/feed')}>Feed</Link>
       <Link to="/groups" style={getTabStyle('/groups')}>Groups</Link>
       <Link to="/artists" style={getTabStyle('/artists')}>Idols</Link>
@@ -63,7 +80,6 @@ function App() {
   return (
     <AuthProvider>
     <Router>
-      {/* Global styles: font, background color, layout reset */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
 
@@ -94,30 +110,25 @@ function App() {
           font-family: 'Quicksand', sans-serif !important;
         }
 
-        /* --- RESPONSIVE NAVIGATION STYLES --- */
         .nav-container {
           display: flex;
           justify-content: flex-start;
           align-items: center;
-          flex-wrap: nowrap; /* Forces items to stay in a single row */
+          flex-wrap: nowrap;
           gap: 2.5rem;
           width: 100%;
           border-bottom: 1px solid #D4C4C7;
           margin-bottom: 2rem;
-          
-          /* Enables smooth native horizontal scrolling */
           overflow-x: auto; 
           -webkit-overflow-scrolling: touch;
-          scrollbar-width: none; /* Hides scrollbar in Firefox */
-          -ms-overflow-style: none; /* Hides scrollbar in IE/Edge */
+          scrollbar-width: none;
+          -ms-overflow-style: none;
         }
         
-        /* Hides scrollbar in Chrome/Safari/Edge */
         .nav-container::-webkit-scrollbar {
           display: none; 
         }
 
-        /* Crucial: Forces all links to keep their natural width so they overflow instead of squishing */
         .nav-container > * {
           flex: 0 0 auto; 
         }
@@ -126,10 +137,9 @@ function App() {
           margin-left: auto;
         }
 
-        /* Mobile Adjustments */
         @media (max-width: 600px) {
           .nav-container {
-            gap: 1.5rem; /* Slightly larger gap for easier tapping */
+            gap: 1.5rem; 
             padding-bottom: 2px;
           }
           
@@ -160,7 +170,6 @@ function App() {
 
       <main style={{ width: '100%', maxWidth: '1000px', margin: '0 auto', padding: '2rem 1rem 5rem 1rem' }}>
 
-        {/* Site header with bunny icon */}
         <header style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
           <img src="/bunny.png" alt="Bunny" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
           <span style={{ fontSize: '1.2rem', fontWeight: '700', color: '#312527', letterSpacing: '0.04em' }}>Juju's Coll Catalog</span>
@@ -171,7 +180,13 @@ function App() {
         <div style={{ width: '100%' }}>
           <Suspense fallback={<div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>}>
           <Routes>
-            <Route path="/" element={<Profile user={user} />} />
+
+            <Route path="/" element={<Navigate to="/feed" replace />} />
+            
+            <Route path="/profile/:userId" element={<Profile user={user} />} />
+
+            <Route path="/collectors" element={<Collectors />} />
+            
             <Route path="/gallery" element={
               <div>
                 {user && <AddMerch />}
@@ -179,13 +194,13 @@ function App() {
               </div>
             } />
             <Route path="/binders" element={<Binders user={user} />} />
+            <Route path="/binders/:binderId" element={<BinderPage user={user} />} />
             <Route path="/feed" element={
               <div>
                 {user && <AddPost />}
                 <Feed user={user} />
               </div>
             } />
-            {/* Groups page is admin-only; redirects to login if not authenticated */}
             <Route path="/groups" element={<GroupDirectory />} />
             <Route path="/groups/:groupId" element={<GroupPage />} />
             <Route path="/manage" element={user ? <GroupManager /> : <Login user={user} />} />

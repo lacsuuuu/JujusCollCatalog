@@ -30,9 +30,9 @@ export default function ProfileFilters({
       {/* Basic filter bar */}
       <div className="filter-bar" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', padding: '1.2rem', backgroundColor: '#D4C4C7', borderRadius: '10px', boxShadow: '0 2px 8px rgba(49,37,39,0.08)' }}>
         <CustomSelect
-          value={filterGroup === 'All' ? '' : filterGroup}
+          value={filterGroup}
           onChange={onGroupChange}
-          options={uniqueGroupNames.map(g => ({ value: g, label: g }))}
+          options={uniqueGroupNames.map(g => ({ value: g, label: g === 'All' ? 'All Groups' : g }))}
           placeholder="All Groups"
           style={{ flex: '0 0 auto', minWidth: '140px', fontWeight: 'bold' }}
         />
@@ -73,14 +73,23 @@ export default function ProfileFilters({
             onChange={setFilterEra}
             options={uniqueEras.map(era => ({ value: era, label: era === 'All' ? 'All Eras' : era }))}
             placeholder="All Eras"
-            style={{ flex: 1, minWidth: '120px' }}
+            style={{  flex: 1, 
+                      minWidth: '120px',
+                      opacity: filterGroup === 'All' ? 0.4 : 1,
+                      pointerEvents: filterGroup === 'All' ? 'none' : 'auto',
+                      transition: 'opacity 0.2s'
+            }}
           />
           <CustomSelect
             value={filterMember}
             onChange={setFilterMember}
             options={uniqueMembers.map(member => ({ value: member, label: member === 'All' ? 'All Members' : member }))}
             placeholder="All Members"
-            style={{ flex: 1, minWidth: '120px' }}
+            style={{  flex: 1, 
+                      minWidth: '120px',
+                      opacity: filterGroup === 'All' ? 0.4 : 1,
+                      pointerEvents: filterGroup === 'All' ? 'none' : 'auto',
+                      transition: 'opacity 0.2s' }}
           />
 
           {/* Date range picker */}

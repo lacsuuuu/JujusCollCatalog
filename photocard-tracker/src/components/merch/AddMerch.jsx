@@ -261,7 +261,7 @@ export default function AddMerch() {
       const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
       const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-
+      
       const compressedFile = await imageCompression(file, options);
       const formData = new FormData();
       formData.append('file', compressedFile);
@@ -289,6 +289,7 @@ export default function AddMerch() {
         finalMemberName = selectedMember;
       }
 
+      // CRITICAL FIX: Added userId to link this item to the creator!
       const payload = {
         customName,
         category,
@@ -297,7 +298,8 @@ export default function AddMerch() {
         era: selectedEra,
         imageUrl: cloudData.secure_url,
         status: "unowned",
-        addedAt: new Date()
+        addedAt: new Date(),
+        userId: user.uid 
       };
       
       if (category === 'Photocard') {

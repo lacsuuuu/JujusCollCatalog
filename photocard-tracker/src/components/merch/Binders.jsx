@@ -1,12 +1,72 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { deleteField } from 'firebase/firestore';
 import { useBinders } from '../../hooks/useBinders';
 import { useMerch } from '../../hooks/useMerch';
 import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
 import ThemeAlert from '../ui/ThemeAlert';
 
+const BINDER_STYLES = `
+  .theme-input { transition: box-shadow 0.2s ease; outline: none; }
+  .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
+
+  .binder-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+  .binder-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(49,37,39,0.15) !important; }
+
+  .slot-container {
+    aspect-ratio: 63 / 100;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: rgba(255,255,255,0.4);
+    border: 2px dashed #A08D90;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .slot-container.filled { border: 2px solid transparent; background-color: transparent; }
+  .slot-container.editable { cursor: grab; }
+  .slot-container.dragging-over { border: 2px solid #8D6E73; background-color: rgba(141,110,115,0.15); transform: scale(1.03); }
+
+  .slot-remove-btn {
+    position: absolute; top: 4px; right: 4px;
+    background-color: rgba(49,37,39,0.7); border: none; border-radius: 50%;
+    width: 24px; height: 24px; cursor: pointer;
+    display: flex; justify-content: center; align-items: center;
+    opacity: 0; transition: opacity 0.2s, filter 0.2s, transform 0.2s;
+    padding: 0; line-height: 0;
+  }
+  .slot-container:hover .slot-remove-btn { opacity: 1; }
+  .slot-remove-btn:hover { filter: brightness(0.8); transform: scale(1.05); }
+
+  .merch-picker-item { transition: transform 0.2s; cursor: pointer; }
+  .merch-picker-item:hover { transform: scale(1.05); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+  .public-toggle {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.3rem 0.75rem; border-radius: 20px; cursor: pointer;
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; border: none; transition: all 0.2s;
+  }
+  .public-toggle.is-public { background-color: rgba(141,110,115,0.2); color: #8D6E73; }
+  .public-toggle.is-private { background-color: rgba(49,37,39,0.08); color: '#A08D90'; }
+  .public-toggle:hover { filter: brightness(0.9); }
+
+  .custom-scroll::-webkit-scrollbar { width: 8px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
+
+  @media (max-width: 900px) {
+    .binder-layout { flex-direction: column !important; }
+    .collection-panel { width: 100% !important; max-height: 400px !important; }
+  }
+`;
+
 export default function Binders({ user }) {
-  const { binders, loading, createBinder, deleteBinder, updateBinder, removeSlotsBatch } = useBinders(user);
+  const navigate = useNavigate();
+  const { binders, loading, createBinder, deleteBinder, updateBinder, removeSlotsBatch, togglePublic } = useBinders(user);
   const { merch } = useMerch(user);
 
   const [activeBinder, setActiveBinder] = useState(null);
@@ -22,7 +82,6 @@ export default function Binders({ user }) {
   const [alertMsg, setAlertMsg] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  // Keep activeBinder in sync with live binders data
   useEffect(() => {
     if (!activeBinder) return;
     const updated = binders.find(b => b.id === activeBinder.id);
@@ -48,8 +107,6 @@ export default function Binders({ user }) {
     user,
     onUpdate: (updates) => updateBinder(activeBinder.id, updates).catch(() => setAlertMsg("Error updating binder slots.")),
   });
-
-  // ── Handlers ──────────────────────────────────────────────
 
   const handleCreateBinder = async () => {
     if (!newBinderName.trim()) return;
@@ -82,15 +139,11 @@ export default function Binders({ user }) {
 
     const executeDelete = async () => {
       const updates = {};
-
-      // Remove cards on current page
       for (let i = 0; i < activeBinder.type; i++) {
         if (activeBinder.slots?.[`${currentPage}-${i}`]) {
           updates[`slots.${currentPage}-${i}`] = deleteField();
         }
       }
-
-      // Shift pages above current page down by one
       Object.keys(activeBinder.slots || {}).forEach(key => {
         const [p, s] = key.split('-');
         const pageNum = parseInt(p, 10);
@@ -100,14 +153,10 @@ export default function Binders({ user }) {
           updates[`slots.${pageNum}-${slotNum}`] = deleteField();
         }
       });
-
-      // Update cover page reference
       if (activeBinder.coverPage === currentPage) updates.coverPage = null;
       else if (activeBinder.coverPage > currentPage) updates.coverPage = activeBinder.coverPage - 1;
-
       const newTotal = Math.max(1, computedTotalPages - 1);
       updates.totalPages = newTotal;
-
       try {
         await removeSlotsBatch(activeBinder.id, updates);
         if (currentPage >= newTotal) setCurrentPage(newTotal - 1);
@@ -128,24 +177,36 @@ export default function Binders({ user }) {
 
   const handleCollectionClick = async (merchId) => {
     if (!isEditing || !user) return;
-
     let emptySlot = -1;
     for (let i = 0; i < activeBinder.type; i++) {
-      if (!activeBinder.slots?.[`${currentPage}-${i}`]) {
-        emptySlot = i;
-        break;
-      }
+      if (!activeBinder.slots?.[`${currentPage}-${i}`]) { emptySlot = i; break; }
     }
-
     if (emptySlot === -1) {
       setAlertMsg("This page is full! Add a new page or switch pages.");
       return;
     }
-
     try {
       await updateBinder(activeBinder.id, { [`slots.${currentPage}-${emptySlot}`]: merchId });
     } catch {
-      setAlertMsg("Error adding card to binder.");
+      setAlertMsg("Error adding card.");
+    }
+  };
+
+  const removeCardFromSlot = async (slotIndex) => {
+    try {
+      await updateBinder(activeBinder.id, { [`slots.${currentPage}-${slotIndex}`]: deleteField() });
+    } catch {
+      setAlertMsg("Error removing card.");
+    }
+  };
+
+  const handleSetCover = async () => {
+    const newCover = activeBinder.coverPage === currentPage ? null : currentPage;
+    try {
+      await updateBinder(activeBinder.id, { coverPage: newCover });
+      setAlertMsg(newCover === null ? 'Cover page removed.' : 'Cover updated!');
+    } catch {
+      setAlertMsg('Error updating cover.');
     }
   };
 
@@ -160,105 +221,61 @@ export default function Binders({ user }) {
     });
   };
 
-  const handleRenameSave = async () => {
-    if (editNameValue.trim() && editNameValue !== activeBinder.name) {
-      await updateBinder(activeBinder.id, { name: editNameValue.trim() });
+  const handleRenameSave = async (newName) => {
+    if (newName.trim() && newName !== activeBinder.name) {
+      await updateBinder(activeBinder.id, { name: newName.trim() });
     }
     setEditingName(false);
   };
 
-  const handleSetCover = async () => {
-    if (!user) return;
+  const handleTogglePublic = async (e, binder) => {
+    e.stopPropagation();
     try {
-      const newCover = activeBinder.coverPage === currentPage ? null : currentPage;
-      await updateBinder(activeBinder.id, { coverPage: newCover });
-      setAlertMsg(newCover === null ? "Cover page removed." : "Binder cover updated!");
+      await togglePublic(binder.id, binder.isPublic);
     } catch {
-      setAlertMsg("Error updating cover.");
+      setAlertMsg("Error updating binder visibility.");
     }
   };
 
-  const removeCardFromSlot = async (slotIndex) => {
-    if (!user || !isEditing) return;
-    const slotKey = `${currentPage}-${slotIndex}`;
-    try {
-      await removeSlotsBatch(activeBinder.id, { [`slots.${slotKey}`]: deleteField() });
-    } catch {
-      setAlertMsg("Error removing card.");
-    }
-  };
+  if (loading && user) return <div style={{ textAlign: 'center', color: '#6A585B', padding: '3rem' }}>Loading binders...</div>;
 
-  // ── Early returns ──────────────────────────────────────────
-
-  if (!user) return null;
-  if (loading) return <div style={{ textAlign: 'center', color: '#6A585B', padding: '3rem' }}>Loading binders...</div>;
-
-  // ── Render ─────────────────────────────────────────────────
+  // ── Logged-out state ──────────────────────────────────────
+  if (!user) {
+    return (
+      <div style={{ width: '100%' }}>
+        <style>{BINDER_STYLES}</style>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', textAlign: 'center', gap: '1.5rem' }}>
+          <div style={{ width: '80px', height: '80px', backgroundColor: '#D4C4C7', borderRadius: '12px', borderLeft: '10px solid #C2B0B4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: '#312527' }}>Log in to Create Your Own Binder</h2>
+          <p style={{ margin: 0, color: '#6A585B', fontSize: '0.95rem', maxWidth: '360px' }}>Organize your photocard collection into custom binders. Log in to get started.</p>
+          <button
+            onClick={() => navigate('/admin')}
+            style={{ padding: '0.75rem 2rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer' }}
+          >
+            Log In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', animation: 'fadeIn 0.3s' }}>
-      <style>{`
-        .theme-input { transition: box-shadow 0.2s ease; outline: none; }
-        .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
-        
-        .binder-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
-        .binder-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(49,37,39,0.15) !important; }
-        
-        .slot-container {
-           aspect-ratio: 63 / 100;
-           border-radius: 8px;
-           overflow: hidden;
-           background-color: rgba(255,255,255,0.4);
-           border: 2px dashed #A08D90;
-           display: flex;
-           justify-content: center;
-           align-items: center;
-           position: relative;
-           transition: all 0.2s;
-        }
-        .slot-container.filled { border: 2px solid transparent; background-color: transparent; }
-        .slot-container.editable { cursor: grab; }
-        .slot-container.editable:active { cursor: grabbing; }
-        .slot-container.editable:hover { border-color: #8D6E73; }
-        .slot-container.dragging-over { border-color: #312527 !important; background-color: rgba(141, 110, 115, 0.3) !important; }
-        
-        .slot-image { width: 100%; height: 100%; object-fit: cover; }
-        
-        .slot-remove-btn {
-           position: absolute; top: 6px; right: 6px; width: 30px; height: 30px;
-           background: rgba(49,37,39,0.65); backdrop-filter: blur(4px); color: white;
-           border-radius: 50%; border: none;
-           display: flex; justify-content: center; align-items: center; cursor: pointer;
-           opacity: 0; transition: all 0.2s; z-index: 10;
-           padding: 0; line-height: 0; 
-        }
-        .slot-container:hover .slot-remove-btn { opacity: 1; }
-        .slot-remove-btn:hover { filter: brightness(0.8); transform: scale(1.05); }
-        .slot-remove-btn svg { display: block; }
-
-        .merch-picker-item { transition: transform 0.2s; cursor: pointer; }
-        .merch-picker-item:hover { transform: scale(1.05); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        
-        .custom-scroll::-webkit-scrollbar { width: 8px; }
-        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
-
-        @media (max-width: 900px) {
-           .binder-layout { flex-direction: column !important; }
-           .collection-panel { width: 100% !important; max-height: 400px !important; }
-        }
-      `}</style>
-
+      <style>{BINDER_STYLES}</style>
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
 
-      {/* Confirmation Modal */}
+      {/* Confirm modal */}
       {confirmAction && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(49, 37, 39, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(49,37,39,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#E6DADD', padding: '1.5rem 2rem', borderRadius: '12px', border: '1px solid #D4C4C7', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '320px', width: '90%' }}>
             <p style={{ color: '#312527', margin: '0 0 1.5rem 0', fontWeight: '600', lineHeight: '1.4' }}>{confirmAction.message}</p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-              <button onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }} style={{ padding: '0.5rem 1.5rem', backgroundColor: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Delete</button>
+              <button onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }} style={{ padding: '0.5rem 1.5rem', backgroundColor: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Confirm</button>
               <button onClick={() => setConfirmAction(null)} style={{ padding: '0.5rem 1.5rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
             </div>
           </div>
@@ -266,12 +283,10 @@ export default function Binders({ user }) {
       )}
 
       {!activeBinder ? (
-        // ================= DIRECTORY VIEW =================
+        // ── DIRECTORY VIEW ────────────────────────────────────
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527', margin: 0 }}>
-              My Binders
-            </h2>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527', margin: 0 }}>My Binders</h2>
             <button onClick={() => setShowCreate(true)} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
               + New Binder
             </button>
@@ -281,8 +296,32 @@ export default function Binders({ user }) {
             {binders.map(binder => {
               const cardCount = Object.keys(binder.slots || {}).length;
               return (
-                <div key={binder.id} className="binder-card" onClick={() => { setActiveBinder(binder); setCurrentPage(0); setIsEditing(false); }} style={{ backgroundColor: '#D4C4C7', borderRadius: '12px', padding: '2rem 1.5rem', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.5rem' }}>
-                  
+                <div
+                  key={binder.id}
+                  className="binder-card"
+                  onClick={() => navigate(`/binders/${binder.id}`)}
+                  style={{ backgroundColor: '#D4C4C7', borderRadius: '12px', padding: '2rem 1.5rem', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.5rem', position: 'relative' }}
+                >
+                  {/* Public/Private toggle badge */}
+                  <button
+                    className={`public-toggle ${binder.isPublic ? 'is-public' : 'is-private'}`}
+                    onClick={(e) => handleTogglePublic(e, binder)}
+                    style={{
+                      position: 'absolute', top: '1rem', right: '1rem',
+                      backgroundColor: binder.isPublic ? 'rgba(141,110,115,0.2)' : 'rgba(49,37,39,0.08)',
+                      color: binder.isPublic ? '#8D6E73' : '#A08D90',
+                    }}
+                    title={binder.isPublic ? 'Click to make private' : 'Click to make public'}
+                  >
+                    {binder.isPublic ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    )}
+                    {binder.isPublic ? 'Public' : 'Private'}
+                  </button>
+
+                  {/* Binder cover preview */}
                   <div style={{ width: '150px', height: '200px', backgroundColor: '#C2B0B4', borderRadius: '6px 16px 16px 6px', borderLeft: '16px solid #8D6E73', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: 'inset 3px 0 6px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: binder.type === 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gridAutoRows: '1fr', gap: '4px', padding: '12px', width: '100%', height: '100%', boxSizing: 'border-box' }}>
                       {Array.from({ length: binder.type }).map((_, i) => {
@@ -305,25 +344,22 @@ export default function Binders({ user }) {
                 </div>
               );
             })}
-            {binders.length === 0 && <p style={{ color: '#6A585B', gridColumn: '1 / -1' }}>No binders created yet.</p>}
+            {binders.length === 0 && <p style={{ color: '#6A585B', gridColumn: '1 / -1' }}>No binders yet. Create one to get started!</p>}
           </div>
 
-          {/* Create Modal */}
+          {/* Create modal */}
           {showCreate && (
             <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(49,37,39,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
               <div style={{ backgroundColor: '#E6DADD', padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px' }}>
                 <h3 style={{ margin: '0 0 1.5rem 0', color: '#312527' }}>Create New Binder</h3>
-                
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#6A585B', fontSize: '0.85rem', fontWeight: 'bold' }}>Binder Name</label>
-                <input className="theme-input" value={newBinderName} onChange={e => setNewBinderName(e.target.value)} placeholder="e.g., Aespa Collection" style={{ width: '100%', padding: '0.8rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '1.5rem', color: '#312527' }} />
-                
+                <input className="theme-input" value={newBinderName} onChange={e => setNewBinderName(e.target.value)} placeholder="e.g., Aespa Collection" style={{ width: '100%', padding: '0.8rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '1.5rem', color: '#312527', boxSizing: 'border-box' }} />
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#6A585B', fontSize: '0.85rem', fontWeight: 'bold' }}>Page Layout</label>
-                <select className="theme-input" value={newBinderType} onChange={e => setNewBinderType(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '2rem', color: '#312527' }}>
+                <select value={newBinderType} onChange={e => setNewBinderType(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '2rem', color: '#312527' }}>
                   <option value={9}>9-Pocket (3x3 Grid)</option>
                   <option value={4}>4-Pocket (2x2 Grid)</option>
                   <option value={3}>3-Pocket (1x3 Grid)</option>
                 </select>
-
                 <div style={{ display: 'flex', gap: '1rem' }}>
                   <button onClick={handleCreateBinder} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Create</button>
                   <button onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '0.75rem', backgroundColor: 'transparent', color: '#6A585B', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
@@ -333,11 +369,8 @@ export default function Binders({ user }) {
           )}
         </div>
       ) : (
-
-        // ================= ACTIVE BINDER VIEW =================
+        // ── ACTIVE BINDER VIEW ────────────────────────────────
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-
-          {/* Header Controls */}
           <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
             <button onClick={() => { setActiveBinder(null); setIsEditing(false); }} style={{ background: 'none', border: 'none', color: '#6A585B', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Back
@@ -346,7 +379,10 @@ export default function Binders({ user }) {
             <div style={{ flex: 1, textAlign: 'center' }}>
               {editingName ? (
                 <input
-                  autoFocus className="theme-input" value={editNameValue} onChange={e => setEditNameValue(e.target.value)} onBlur={handleRenameSave} onKeyDown={e => e.key === 'Enter' && handleRenameSave()}
+                  autoFocus className="theme-input" value={editNameValue}
+                  onChange={e => setEditNameValue(e.target.value)}
+                  onBlur={() => handleRenameSave(editNameValue)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRenameSave(editNameValue); }}
                   style={{ background: '#D4C4C7', border: 'none', borderRadius: '6px', color: '#312527', fontSize: '1.4rem', fontWeight: '700', padding: '0.4rem 1rem', textAlign: 'center' }}
                 />
               ) : (
@@ -360,7 +396,7 @@ export default function Binders({ user }) {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
               <button onClick={() => setIsEditing(!isEditing)} style={{ padding: '0.5rem 1.2rem', backgroundColor: isEditing ? '#8D6E73' : 'transparent', color: isEditing ? '#FFF' : '#8D6E73', border: '2px solid #8D6E73', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem', transition: 'all 0.2s' }}>
                 {isEditing ? 'Done Editing' : 'Edit Binder'}
               </button>
@@ -373,8 +409,6 @@ export default function Binders({ user }) {
           </div>
 
           <div className="binder-layout" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', justifyContent: isEditing ? 'flex-start' : 'center' }}>
-
-            {/* LEFT COLUMN: THE BINDER ITSELF */}
             <div style={{ flex: isEditing ? '0 0 auto' : '1', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: activeBinder.type === 9 ? '550px' : activeBinder.type === 4 ? '400px' : '500px', margin: isEditing ? '0' : '0 auto' }}>
 
               {/* Page Controls */}
@@ -390,8 +424,6 @@ export default function Binders({ user }) {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
                   </button>
                 </div>
-
-                {/* Cover Button */}
                 <button
                   onClick={handleSetCover}
                   title={activeBinder.coverPage === currentPage ? "Remove Cover Page" : "Set as Cover Page"}
@@ -410,7 +442,6 @@ export default function Binders({ user }) {
                     const merchId = activeBinder.slots?.[`${currentPage}-${index}`];
                     const card = merchId ? merch.find(m => m.id === merchId) : null;
                     const isDragTarget = dragDrop.dragOverSlot === index;
-
                     return (
                       <div
                         key={index}
@@ -439,26 +470,19 @@ export default function Binders({ user }) {
                 </div>
               </div>
 
-              {/* Bottom Page Controls (Edit Mode) */}
               {isEditing && (
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', width: '100%', justifyContent: 'center' }}>
                   {computedTotalPages > 1 && (
-                    <button
-                      onClick={handleDeletePage}
-                      style={{ padding: '0.6rem 1.2rem', backgroundColor: 'transparent', color: '#A85A66', border: '2px solid #A85A66', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'background 0.2s, color 0.2s' }}
+                    <button onClick={handleDeletePage} style={{ padding: '0.6rem 1.2rem', backgroundColor: 'transparent', color: '#A85A66', border: '2px solid #A85A66', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'background 0.2s, color 0.2s' }}
                       onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#A85A66'; e.currentTarget.style.color = '#FFF'; }}
-                      onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#A85A66'; }}
-                    >
+                      onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#A85A66'; }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       Remove Page
                     </button>
                   )}
-                  <button
-                    onClick={handleAddPage}
-                    style={{ padding: '0.6rem 1.2rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'filter 0.2s' }}
+                  <button onClick={handleAddPage} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'filter 0.2s' }}
                     onMouseOver={(e) => { e.currentTarget.style.filter = 'brightness(0.9)'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                  >
+                    onMouseOut={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     Add New Page
                   </button>
@@ -466,38 +490,21 @@ export default function Binders({ user }) {
               )}
             </div>
 
-            {/* RIGHT COLUMN: COLLECTION SIDEBAR */}
             {isEditing && (
               <div className="collection-panel" style={{ flex: 1, backgroundColor: '#D4C4C7', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: '600px', boxShadow: '0 4px 12px rgba(49,37,39,0.1)' }}>
                 <h3 style={{ margin: '0 0 1rem 0', color: '#312527', fontSize: '1.2rem' }}>Photocards</h3>
                 <p style={{ margin: '0 0 1rem 0', color: '#6A585B', fontSize: '0.85rem', fontStyle: 'italic' }}>Click or drag cards to add them to the binder.</p>
-
-                <input
-                  className="theme-input"
-                  placeholder="Search collection..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '0.8rem 1rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '1.2rem', color: '#312527', outline: 'none', boxSizing: 'border-box' }}
-                />
-
+                <input className="theme-input" placeholder="Search collection..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '0.8rem 1rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '1.2rem', color: '#312527', outline: 'none', boxSizing: 'border-box' }} />
                 <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.75rem', paddingRight: '0.5rem', alignContent: 'start' }}>
                   {merch.filter(m =>
                     (m.customName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (m.memberName || '').toLowerCase().includes(searchQuery.toLowerCase())
                   ).map(item => (
-                    <div
-                      key={item.id}
-                      className="merch-picker-item"
-                      draggable
-                      onClick={() => handleCollectionClick(item.id)}
-                      onDragStart={(e) => dragDrop.handleCollectionDragStart(e, item.id)}
-                      style={{ borderRadius: '6px', overflow: 'hidden', backgroundColor: '#C2B0B4', aspectRatio: '63/100', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', cursor: 'pointer' }}
-                      title={`${item.customName || item.memberName} - Click or drag to add`}
-                    >
+                    <div key={item.id} className="merch-picker-item" draggable onClick={() => handleCollectionClick(item.id)} onDragStart={(e) => dragDrop.handleCollectionDragStart(e, item.id)} style={{ borderRadius: '6px', overflow: 'hidden', backgroundColor: '#C2B0B4', aspectRatio: '63/100', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', cursor: 'pointer' }} title={`${item.customName || item.memberName} - Click or drag to add`}>
                       <img src={item.imageUrl} alt={item.customName} draggable="false" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   ))}
-                  {merch.length === 0 && <p style={{ gridColumn: '1/-1', textAlign: 'center', color: '#6A585B' }}>No items match search.</p>}
+                  {merch.length === 0 && <p style={{ gridColumn: '1/-1', textAlign: 'center', color: '#6A585B' }}>No items in collection.</p>}
                 </div>
               </div>
             )}

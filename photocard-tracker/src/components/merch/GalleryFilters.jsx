@@ -71,15 +71,25 @@ export default function GalleryFilters({
             onChange={setFilterEra}
             options={uniqueEras.map(era => ({ value: era, label: era === 'All' ? 'All Eras' : era }))}
             placeholder="All Eras"
-            style={{ flex: 1, minWidth: '120px' }}
+            style={{  flex: 1, 
+                      minWidth: '120px',
+                      opacity: filterGroup === 'All' ? 0.4 : 1,
+                      pointerEvents: filterGroup === 'All' ? 'none' : 'auto',
+                      transition: 'opacity 0.2s'
+            }}
           />
           <CustomSelect
             value={filterMember}
             onChange={setFilterMember}
-            options={uniqueMembers.map(m => ({ value: m, label: m === 'All' ? 'All Members' : m }))}
+            options={uniqueMembers.map(member => ({ value: member, label: member === 'All' ? 'All Members' : member }))}
             placeholder="All Members"
-            style={{ flex: 1, minWidth: '120px' }}
+            style={{  flex: 1, 
+                      minWidth: '120px',
+                      opacity: filterGroup === 'All' ? 0.4 : 1,
+                      pointerEvents: filterGroup === 'All' ? 'none' : 'auto',
+                      transition: 'opacity 0.2s' }}
           />
+
 
           <div className="theme-date-picker" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#C2B0B4', borderRadius: '6px', padding: '0.5rem 1rem', flex: '0 1 auto', transition: 'box-shadow 0.2s ease' }}>
             <span style={{ fontSize: '0.85rem', color: '#6A585B', fontWeight: '600', whiteSpace: 'nowrap', marginRight: '0.2rem', pointerEvents: 'none' }}>Released:</span>

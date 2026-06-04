@@ -16,7 +16,7 @@ export function useBinders(user) {
       return;
     }
 
-    const q = query(collection(db, 'binders'), where('ownerId', '==', user.uid));
+    const q = query(collection(db, 'binders'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
       setBinders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
@@ -27,12 +27,13 @@ export function useBinders(user) {
 
   const createBinder = async ({ name, type }) => {
     await addDoc(collection(db, 'binders'), {
-      ownerId: user.uid,
+      userId: user.uid,
       name: name.trim(),
       type: Number(type),
       slots: {},
       coverPage: 0,
       totalPages: 1,
+      isPublic: false,
       createdAt: new Date().toISOString(),
     });
   };
@@ -49,5 +50,9 @@ export function useBinders(user) {
     await updateDoc(doc(db, 'binders', id), updates);
   };
 
-  return { binders, loading, createBinder, deleteBinder, updateBinder, removeSlotsBatch };
+  const togglePublic = async (id, currentValue) => {
+    await updateDoc(doc(db, 'binders', id), { isPublic: !currentValue });
+  };
+
+  return { binders, loading, createBinder, deleteBinder, updateBinder, removeSlotsBatch, togglePublic };
 }

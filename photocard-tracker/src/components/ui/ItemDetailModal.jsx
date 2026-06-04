@@ -1,58 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import imageCompression from 'browser-image-compression';
 import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
+import CustomSelect from '../ui/CustomSelect';
 
-const CustomSelect = ({ value, onChange, options, placeholder, style }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const displayLabel = options.find(o => o.value === value)?.label || value || placeholder;
-
-  return (
-    <div 
-      ref={containerRef} 
-      className="theme-select-wrapper" 
-      tabIndex={0} 
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen); } }}
-      style={{ position: 'relative', width: '100%', outline: 'none', ...style }}
-    >
-      <div className="theme-select-trigger" onClick={() => setIsOpen(!isOpen)} style={{
-        padding: '0.7rem 2.5rem 0.7rem 1rem', borderRadius: '6px', backgroundColor: '#C2B0B4', 
-        color: '#312527', fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left',
-        backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23312527' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1em',
-        transition: 'box-shadow 0.2s', boxSizing: 'border-box'
-      }}>
-        {displayLabel}
-      </div>
-      {isOpen && (
-        <div className="custom-scroll" style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#F9F6F0',
-          border: '1px solid #C2B0B4', borderRadius: '6px', marginTop: '4px',
-          maxHeight: '180px', overflowY: 'auto', zIndex: 9999,
-          boxShadow: '0 4px 16px rgba(49,37,39,0.15)', padding: '0.25rem 0', textAlign: 'left'
-        }}>
-          {options.map((opt, i) => (
-            <div key={i} className="theme-dropdown-item" onClick={(e) => { e.stopPropagation(); onChange(opt.value); setIsOpen(false); }}>
-              {opt.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const pcTypeOptions = [
   { value: 'Album', label: 'Album' }, { value: 'POB', label: 'POB' },
@@ -74,7 +27,8 @@ const statusOptions = [
   { value: 'wishlisted', label: 'Wishlist' }
 ];
 
-export default function ItemDetailModal({ item, onClose, user }) {
+// Added userRole prop here
+export default function ItemDetailModal({ item, onClose, user, userRole }) {
   const navigate = useNavigate();
   const [groupDocId, setGroupDocId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -90,6 +44,13 @@ export default function ItemDetailModal({ item, onClose, user }) {
   const backRef = useRef(null);
 
   const isLoggedIn = !!user;
+
+  // ROLE-BASED ACCESS CONTROL LOGIC MOVED HERE:
+  const isCreator = item?.userId === user?.uid;
+  const role = userRole || 'user'; 
+  const isAdmin = role === 'admin';
+  const isCollab = role === 'collaborator';
+  const canEdit = isAdmin || (isCollab && isCreator);
 
   useEffect(() => {
     setEditedItem(item);
@@ -113,16 +74,24 @@ export default function ItemDetailModal({ item, onClose, user }) {
 
   const isPhotocard = (item.category || "").toLowerCase() === 'photocard';
 
+  // ARCHITECTURE UPDATE: isFavorite is now stored in the junction table
   const handleToggleFavorite = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!user) return; // Guard clause just in case
     
     setEditedItem((prev) => {
       const currentFav = !!prev?.isFavorite;
       const newFavState = !currentFav;
       
       if (item?.id) {
-        updateDoc(doc(db, "merchandise", item.id), { isFavorite: newFavState })
+        const linkId = `${user.uid}_${item.id}`;
+        // Writes to collected_items instead of merchandise
+        setDoc(doc(db, "collected_items", linkId), { 
+          userId: user.uid,
+          merchId: item.id,
+          isFavorite: newFavState 
+        }, { merge: true })
           .catch((err) => {
             console.error("Failed to update favorite status", err);
             setEditedItem((curr) => ({ ...curr, isFavorite: currentFav }));
@@ -147,7 +116,6 @@ export default function ItemDetailModal({ item, onClose, user }) {
   };
 
   const handleRemoveImage = async (fieldToClear, currentUrl) => {
-    // Removed the restriction so you can successfully clear and change the image
     if (currentUrl && currentUrl.includes('cloudinary.com')) {
       await deleteCloudinaryImage(currentUrl);
     }
@@ -157,16 +125,33 @@ export default function ItemDetailModal({ item, onClose, user }) {
   };
 
   const handleSave = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      let updatedData = { ...editedItem };
+      const { status, isFavorite, ...globalItemData } = editedItem;
+
+      let updatedData = { ...globalItemData };
       if (frontFile) updatedData.imageUrl = await uploadImage(frontFile);
       if (backFile) updatedData.backImageUrl = await uploadImage(backFile);
 
-      await updateDoc(doc(db, "merchandise", item.id), updatedData);
+      try {
+        await updateDoc(doc(db, "merchandise", item.id), updatedData);
+      } catch (err) {
+        console.warn("Could not update global item. User likely not the creator.", err);
+      }
+
+      const linkId = `${user.uid}_${item.id}`;
+      await setDoc(doc(db, "collected_items", linkId), {
+        userId: user.uid,
+        merchId: item.id,
+        status: status || 'unowned',
+        updatedAt: new Date()
+      }, { merge: true });
+
       onClose(); 
     } catch (err) {
-      alert("Failed to save.");
+      console.error(err);
+      alert("Failed to save changes.");
     } finally {
       setLoading(false);
     }
@@ -204,7 +189,6 @@ export default function ItemDetailModal({ item, onClose, user }) {
   const inputVal = formatDateForInput(editedItem?.releaseDate);
   const displayReleaseDate = inputVal ? `${inputVal.split('-')[1]}/${inputVal.split('-')[0]}` : 'MM/YYYY';
 
-  // VALIDATION: Ensures that there is an image URL or a new file ready to be uploaded for the primary image slot
   const hasRequiredImage = !!(frontFile || editedItem?.imageUrl);
   const isSaveDisabled = loading || !hasRequiredImage;
 
@@ -445,7 +429,7 @@ export default function ItemDetailModal({ item, onClose, user }) {
               </button>
             </>
           ) : (
-            isLoggedIn && <button onClick={() => setIsEditing(true)} style={{ padding: '0.5rem 1.5rem', background: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Edit Item</button>
+            canEdit && <button onClick={() => setIsEditing(true)} style={{ padding: '0.5rem 1.5rem', background: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Edit Item</button>
           )}
         </div>
       </div>

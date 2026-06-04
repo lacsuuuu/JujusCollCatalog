@@ -3,7 +3,6 @@ import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../../utils/imageUtils';
 import { db } from '../../firebase';
 
-
 export default function ProfileHeader({
   user,
   profileData,
@@ -13,6 +12,7 @@ export default function ProfileHeader({
   setIsEditing,
   defaultAvatar,
   defaultBanner,
+  isOwnProfile, // Added isOwnProfile prop
 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -38,7 +38,7 @@ export default function ProfileHeader({
   const onCropComplete = useCallback((_, pixels) => {
     setCroppedAreaPixels(pixels);
   }, []);
-
+  
   const handleSaveCrop = async () => {
     if (!croppedAreaPixels) return;
     try {
@@ -92,6 +92,7 @@ export default function ProfileHeader({
               onCropComplete={onCropComplete}
             />
           </div>
+
           <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', alignItems: 'center', width: '80%', maxWidth: '400px' }}>
             <span style={{ color: '#E6DADD' }}>Zoom:</span>
             <input type="range" value={zoom} min={1} max={3} step={0.1} onChange={(e) => setZoom(e.target.value)} style={{ flex: 1 }} />
@@ -113,7 +114,8 @@ export default function ProfileHeader({
             onError={(e) => handleImageError(e, defaultBanner)}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
-          {isEditing && (
+          {/* SECURITY FIX: Added isOwnProfile to ensure only the owner can change the banner */}
+          {isEditing && isOwnProfile && (
             <div
               style={{ ...overlayStyle, gap: '8px' }}
               onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
@@ -123,6 +125,7 @@ export default function ProfileHeader({
               <img src="/cam.svg" alt="cam" width="20" height="20" /><span>Change Banner</span>
             </div>
           )}
+
           {isEditing && editForm.bannerUrl && editForm.bannerUrl !== defaultBanner && (
             <button
               className="del-btn"
@@ -135,8 +138,8 @@ export default function ProfileHeader({
           )}
         </div>
 
-        {/* Edit button */}
-        {user && !isEditing && (
+        {/* SECURITY FIX: Added isOwnProfile to ensure only the owner sees the "Edit Profile" button */}
+        {user && isOwnProfile && !isEditing && (
           <button
             onClick={() => setIsEditing(true)}
             style={{ position: 'absolute', right: '1rem', top: '1rem', padding: '0.5rem 1.2rem', backgroundColor: 'rgba(230,218,221,0.8)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: '6px', color: '#312527', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', zIndex: 30 }}
@@ -155,7 +158,8 @@ export default function ProfileHeader({
               onError={(e) => handleImageError(e, defaultAvatar)}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-            {isEditing && (
+            {/* SECURITY FIX: Added isOwnProfile to ensure only the owner can change the avatar */}
+            {isEditing && isOwnProfile && (
               <div
                 style={{ ...overlayStyle, fontSize: '0.8rem', textAlign: 'center', flexDirection: 'column', gap: '0px' }}
                 onMouseEnter={(e) => e.currentTarget.style.opacity = 1}

@@ -4,6 +4,7 @@ import GalleryFilters from './GalleryFilters';
 import GalleryMerchGrid from './GalleryMerchGrid';
 import ItemDetailModal from '../ui/ItemDetailModal';
 import ThemeAlert from '../ui/ThemeAlert';
+import { useUserProfile } from '../../hooks/useUserProfile';
 
 const GALLERY_STYLES = `
   .merch-card { transition: transform 0.2s ease, box-shadow 0.2s ease !important; }
@@ -34,12 +35,14 @@ const GALLERY_STYLES = `
 `;
 
 export default function MerchGallery({ user }) {
+  // CRITICAL FIX: Pass the user's UID down to sync personal collection links
   const {
     merch, groups, loading, alertMsg, setAlertMsg,
     confirmDelete, setConfirmDelete,
     handleStatusChange, handleDelete, confirmDeleteItem,
-  } = useMerchGallery();
+  } = useMerchGallery(user?.uid);
 
+  const { profileData } = useUserProfile(user?.uid);
   const [selectedItem, setSelectedItem] = useState(null);
   const [filterGroup, setFilterGroup] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
@@ -158,7 +161,7 @@ export default function MerchGallery({ user }) {
         onDelete={handleDelete}
       />
 
-      <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} user={user} />
+      <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} user={user} userRole={profileData?.role} />
     </div>
   );
 }

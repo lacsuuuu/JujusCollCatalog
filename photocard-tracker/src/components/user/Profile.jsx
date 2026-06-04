@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import ProfileHeader from './ProfileHeader';
 import ProfileFilters from './ProfileFilters';
 import ProfileMerchGrid from './ProfileMerchGrid';
+import ProfileBinders from './ProfileBinders';
 import ItemDetailModal from '../ui/ItemDetailModal';
 import ThemeAlert from '../ui/ThemeAlert';
+import { useUserProfile } from '../../hooks/useUserProfile';
+import UserSearch from '../ui/UserSearch';
 
 const PROFILE_STYLES = `
   .merch-card { transition: transform 0.2s ease, box-shadow 0.2s ease !important; }
@@ -40,17 +44,21 @@ const PROFILE_STYLES = `
 `;
 
 export default function Profile({ user }) {
+  const { userId } = useParams();
+  const isOwnProfile = user?.uid === userId;
+
+  const { profileData: viewerProfile } = useUserProfile(user?.uid || 'guest');
+
   const {
-    merch, groups, loading, profileData, alertMsg, setAlertMsg,
+    merch, globalMerch, groups, loading, profileData, alertMsg, setAlertMsg,
     saveProfile, defaultAvatar, defaultBanner,
-  } = useProfile();
+  } = useProfile(userId);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [hoveredButton, setHoveredButton] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profileData);
 
-  // Keep editForm in sync when profileData loads from Firestore
   useEffect(() => { setEditForm(profileData); }, [profileData]);
 
   const [filterCategory, setFilterCategory] = useState('All');
@@ -63,19 +71,7 @@ export default function Profile({ user }) {
   const [dateEnd, setDateEnd] = useState('');
   const [groupBy, setGroupBy] = useState('Member');
 
-  // Derived filter options
-  const uniqueGroupNames = groups.map(g => g.name).filter(Boolean).sort();
-  const sortedGroupsByCount = [...uniqueGroupNames].sort((a, b) =>
-    merch.filter(i => i.groupName === b).length - merch.filter(i => i.groupName === a).length
-  );
-
-  // Auto-select the top group on load
-  useEffect(() => {
-    if (!loading && filterGroup === 'All' && sortedGroupsByCount.length > 0) {
-      setFilterGroup(sortedGroupsByCount[0]);
-    }
-  }, [loading, sortedGroupsByCount[0]]);
-
+  const uniqueGroupNames = ['All', ...Array.from(new Set(groups.map(g => g.name).filter(Boolean))).sort()];
   const currentGroup = groups.find(g => g.name === filterGroup);
   const dbEras = currentGroup?.eras || [];
   const dbMembers = currentGroup?.members || [];
@@ -143,6 +139,8 @@ export default function Profile({ user }) {
     <div style={{ width: '100%', paddingBottom: '3rem', textAlign: 'left' }}>
       <style>{PROFILE_STYLES}</style>
 
+      <UserSearch />
+
       <ProfileHeader
         user={user}
         profileData={profileData}
@@ -152,11 +150,12 @@ export default function Profile({ user }) {
         setIsEditing={setIsEditing}
         defaultAvatar={defaultAvatar}
         defaultBanner={defaultBanner}
+        isOwnProfile={isOwnProfile}
       />
 
       {/* Profile info / edit form */}
       <div className="profile-info" style={{ padding: '0 1rem', marginBottom: '3rem', position: 'relative' }}>
-        {isEditing ? (
+        {isEditing && isOwnProfile ? (
           <div className="edit-profile-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '500px' }}>
             <p style={{ color: '#6A585B', margin: 0, fontSize: '0.9rem' }}><em>Click your avatar or banner above to upload an image.</em></p>
             <input type="text" placeholder="Display Name" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} style={{ padding: '0.5rem 0.75rem', backgroundColor: '#C2B0B4', color: '#312527', border: 'none', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
@@ -173,6 +172,9 @@ export default function Profile({ user }) {
           </>
         )}
       </div>
+
+      {/* Public binders section — shows above the merch collection */}
+      <ProfileBinders userId={userId} globalMerch={globalMerch} />
 
       <ProfileFilters
         filterGroup={filterGroup}
@@ -221,7 +223,7 @@ export default function Profile({ user }) {
         />
       </div>
 
-      <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} user={user} />
+      <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} user={user} userRole={viewerProfile?.role} />
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
     </div>
   );
