@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-// ADDED: getDocs, limit, and startAfter
-import { collection, onSnapshot, query, orderBy, where, doc, setDoc, deleteDoc, getDocs, limit, startAfter } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, getDocs, limit, startAfter } from 'firebase/firestore';
 
 export function useMerchGallery(userId) {
   const [merch, setMerch] = useState([]);
@@ -45,13 +44,18 @@ export function useMerchGallery(userId) {
     };
 
     fetchInitialMerch();
-
-    // Keep the user's personal collected links on a real-time listener (This is cheap and necessary for UI updates)
+    
     let unsubCollected = () => {};
     if (userId) {
-      const collectedQuery = query(collection(db, 'collected_items'), where('userId', '==', userId));
-      unsubCollected = onSnapshot(collectedQuery, (snapshot) => {
-        setCollectedLinks(snapshot.docs.map(d => d.data()));
+      console.log("Attempting to listen to user:", userId);
+      const collectedRef = collection(db, 'profile', userId, 'collected_items');
+      
+      unsubCollected = onSnapshot(collectedRef, (snapshot) => {
+        // FIXED: Inject the document ID as merchId
+        setCollectedLinks(snapshot.docs.map(d => ({ 
+          ...d.data(),
+          merchId: d.id 
+        })));
       });
     } else {
        setCollectedLinks([]);
@@ -69,19 +73,18 @@ export function useMerchGallery(userId) {
       const q = query(
         collection(db, 'merchandise'), 
         orderBy('addedAt', 'desc'), 
-        startAfter(lastDoc), // Start exactly where we left off
+        startAfter(lastDoc), 
         limit(20)
       );
       
       const snapshot = await getDocs(q);
 
       if (!snapshot.empty) {
-        // Append the new items to our existing array
         setGlobalMerch(prev => [...prev, ...snapshot.docs.map(d => ({ id: d.id, ...d.data() }))]);
         setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
         setHasMore(snapshot.docs.length === 20);
       } else {
-        setHasMore(false); // No more items left in the database
+        setHasMore(false); 
       }
     } catch (error) {
       console.error("Error loading more merch:", error);
@@ -105,17 +108,17 @@ export function useMerchGallery(userId) {
 
   // 4. Status and Delete Handlers (Unchanged)
   const handleStatusChange = async (itemId, newStatus) => {
-    if (!userId) {
-      setAlertMsg("You must be logged in to update your collection.");
+   if (!userId || userId === 'undefined') {
+      setAlertMsg("You must be fully logged in to update your collection.");
       return;
     }
     try {
-      const linkId = `${userId}_${itemId}`;
+      const itemRef = doc(db, "profile", userId, 'collected_items', itemId);
+
       if (newStatus === 'unowned') {
-        await deleteDoc(doc(db, 'collected_items', linkId));
+        await deleteDoc(itemRef);
       } else {
-        await setDoc(doc(db, 'collected_items', linkId), {
-          userId: userId,
+        await setDoc(itemRef, {
           merchId: itemId,
           status: newStatus,
           updatedAt: new Date()
@@ -132,7 +135,6 @@ export function useMerchGallery(userId) {
   const confirmDeleteItem = async () => {
     try {
       await deleteDoc(doc(db, 'merchandise', confirmDelete));
-      // Optional: Manually filter the deleted item out of state so you don't have to refresh
       setGlobalMerch(prev => prev.filter(item => item.id !== confirmDelete));
     } catch {
       setAlertMsg('Failed to delete global item. Check permissions.');

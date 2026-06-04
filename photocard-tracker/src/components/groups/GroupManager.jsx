@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 
 const inputStyle = {
@@ -33,6 +33,7 @@ export default function GroupManager() {
   const [alertMsg, setAlertMsg] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const [draggedIdx, setDraggedIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
@@ -43,13 +44,22 @@ export default function GroupManager() {
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [editGroupName, setEditGroupName] = useState('');
 
+  // OPTIMIZATION: Fetch once on mount instead of a real-time listener
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'groups'), (snapshot) => {
-      const fetchedGroups = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      fetchedGroups.sort((a, b) => (a.order || 0) - (b.order || 0));
-      setGroups(fetchedGroups);
-    });
-    return () => unsub();
+    const fetchGroups = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'groups'));
+        const fetchedGroups = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        fetchedGroups.sort((a, b) => (a.order || 0) - (b.order || 0));
+        setGroups(fetchedGroups);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+        setAlertMsg("Failed to load groups.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGroups();
   }, []);
 
   const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -58,7 +68,11 @@ export default function GroupManager() {
     const name = newGroupName.trim();
     if (!name) return;
     try {
-      await addDoc(collection(db, 'groups'), { name, members: [], eras: [], order: groups.length });
+      const newGroup = { name, members: [], eras: [], order: groups.length };
+      const docRef = await addDoc(collection(db, 'groups'), newGroup);
+      
+      // Optimistic UI Update
+      setGroups(prev => [...prev, { id: docRef.id, ...newGroup }]);
       setNewGroupName('');
     } catch {
       setAlertMsg("Error adding group.");
@@ -71,6 +85,8 @@ export default function GroupManager() {
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'groups', groupId));
+          // Optimistic UI Update
+          setGroups(prev => prev.filter(g => g.id !== groupId));
         } catch {
           setAlertMsg("Error deleting group.");
         }
@@ -79,9 +95,12 @@ export default function GroupManager() {
   };
 
   const handleSaveGroupName = async (id) => {
-    if (editGroupName.trim()) {
+    const trimmedName = editGroupName.trim();
+    if (trimmedName) {
       try {
-        await updateDoc(doc(db, 'groups', id), { name: editGroupName.trim() });
+        await updateDoc(doc(db, 'groups', id), { name: trimmedName });
+        // Optimistic UI Update
+        setGroups(prev => prev.map(g => g.id === id ? { ...g, name: trimmedName } : g));
       } catch {
         setAlertMsg("Error renaming group.");
       }
@@ -106,9 +125,13 @@ export default function GroupManager() {
       setDraggedIdx(null);
       return;
     }
+    
     const reorderedGroups = [...groups];
     const [draggedItem] = reorderedGroups.splice(draggedIdx, 1);
     reorderedGroups.splice(dropIdx, 0, draggedItem);
+    
+    // Optimistic UI Update
+    setGroups(reorderedGroups);
     setDraggedIdx(null);
     setDragOverIdx(null);
 
@@ -156,6 +179,9 @@ export default function GroupManager() {
     const [draggedItem] = currentList.splice(dragIdx, 1);
     currentList.splice(dropIdx, 0, draggedItem);
 
+    // Optimistic UI Update
+    setGroups(prev => prev.map(g => g.id === group.id ? { ...g, [type]: currentList } : g));
+
     setDraggedSub(null);
     setDragOverSub(null);
 
@@ -175,17 +201,25 @@ export default function GroupManager() {
   const handleAddMember = async (group) => {
     const name = (newMember[group.id] || '').trim();
     if (!name) return;
+    const updatedMembers = [...(group.members || []), name];
+    
     try {
-      await updateDoc(doc(db, 'groups', group.id), { members: [...(group.members || []), name] });
+      // Optimistic UI Update
+      setGroups(prev => prev.map(g => g.id === group.id ? { ...g, members: updatedMembers } : g));
       setNewMember(prev => ({ ...prev, [group.id]: '' }));
+      
+      await updateDoc(doc(db, 'groups', group.id), { members: updatedMembers });
     } catch {
       setAlertMsg("Error adding member.");
     }
   };
 
   const handleRemoveMember = async (group, member) => {
+    const updatedMembers = group.members.filter(m => m !== member);
     try {
-      await updateDoc(doc(db, 'groups', group.id), { members: group.members.filter(m => m !== member) });
+      // Optimistic UI Update
+      setGroups(prev => prev.map(g => g.id === group.id ? { ...g, members: updatedMembers } : g));
+      await updateDoc(doc(db, 'groups', group.id), { members: updatedMembers });
     } catch {
       setAlertMsg("Error removing member.");
     }
@@ -194,23 +228,35 @@ export default function GroupManager() {
   const handleAddEra = async (group) => {
     const name = (newEra[group.id] || '').trim();
     if (!name) return;
+    const updatedEras = [...(group.eras || []), name];
+
     try {
-      await updateDoc(doc(db, 'groups', group.id), { eras: [...(group.eras || []), name] });
+      // Optimistic UI Update
+      setGroups(prev => prev.map(g => g.id === group.id ? { ...g, eras: updatedEras } : g));
       setNewEra(prev => ({ ...prev, [group.id]: '' }));
+      
+      await updateDoc(doc(db, 'groups', group.id), { eras: updatedEras });
     } catch {
       setAlertMsg("Error adding era.");
     }
   };
 
   const handleRemoveEra = async (group, era) => {
+    const updatedEras = group.eras.filter(e => e !== era);
     try {
-      await updateDoc(doc(db, 'groups', group.id), { eras: group.eras.filter(e => e !== era) });
+       // Optimistic UI Update
+      setGroups(prev => prev.map(g => g.id === group.id ? { ...g, eras: updatedEras } : g));
+      await updateDoc(doc(db, 'groups', group.id), { eras: updatedEras });
     } catch {
       setAlertMsg("Error removing era.");
     }
   };
 
   const toggleExpand = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading manager...</div>;
+  }
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem' }}>

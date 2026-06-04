@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, limit, startAfter, orderBy } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
 import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
@@ -15,7 +15,14 @@ export default function GroupPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  
+  // Pagination State
   const [merch, setMerch] = useState([]);
+  const [lastVisible, setLastVisible] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMerch, setLoadingMerch] = useState(false);
+  const BATCH_SIZE = 12;
+
   const [alertMsg, setAlertMsg] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [memberPage, setMemberPage] = useState(0);
@@ -25,7 +32,7 @@ export default function GroupPage() {
   const iconInputRef = useRef(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchGroupData = async () => {
       try {
         const groupRef = doc(db, 'groups', groupId);
         const groupSnap = await getDoc(groupRef);
@@ -33,16 +40,86 @@ export default function GroupPage() {
           const d = { id: groupSnap.id, ...groupSnap.data() };
           setData(d);
           setEditForm(d);
+          // Initial fetch of merch items
+          fetchMerch(d.name, true);
         }
-        const q = query(collection(db, 'merchandise'), where('groupName', '==', groupSnap.data()?.name));
-        const snap = await getDocs(q);
-        setMerch(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) {
         console.error(e);
       }
     };
-    fetchData();
+    fetchGroupData();
   }, [groupId]);
+
+  const fetchMerch = async (groupName, isInitial = false) => {
+    if (loadingMerch) return;
+    setLoadingMerch(true);
+    
+    try {
+      let q = query(
+        collection(db, 'merchandise'), 
+        where('groupName', '==', groupName),
+        orderBy('addedAt', 'desc'), // Assuming you have a timestamp field
+        limit(BATCH_SIZE)
+      );
+      
+      if (!isInitial && lastVisible) {
+        q = query(
+          collection(db, 'merchandise'), 
+          where('groupName', '==', groupName),
+          orderBy('addedAt', 'desc'),
+          startAfter(lastVisible), 
+          limit(BATCH_SIZE)
+        );
+      }
+
+      const snap = await getDocs(q);
+      const fetchedMerch = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      if (isInitial) {
+        setMerch(fetchedMerch);
+      } else {
+        setMerch(prev => [...prev, ...fetchedMerch]);
+      }
+
+      const lastDoc = snap.docs[snap.docs.length - 1];
+      setLastVisible(lastDoc || null);
+      setHasMore(snap.docs.length === BATCH_SIZE);
+      
+    } catch (e) {
+      console.error("Error fetching merch:", e);
+      // Fallback query without orderBy if index is missing
+      if (e.message.includes('index')) {
+          console.warn("Missing index for orderBy, falling back to unordered paginated query.");
+          let fallbackQ = query(
+            collection(db, 'merchandise'), 
+            where('groupName', '==', groupName),
+            limit(BATCH_SIZE)
+          );
+          if (!isInitial && lastVisible) {
+             fallbackQ = query(
+              collection(db, 'merchandise'), 
+              where('groupName', '==', groupName),
+              startAfter(lastVisible), 
+              limit(BATCH_SIZE)
+            );
+          }
+          const fallbackSnap = await getDocs(fallbackQ);
+          const fbMerch = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (isInitial) setMerch(fbMerch);
+          else setMerch(prev => [...prev, ...fbMerch]);
+          setLastVisible(fallbackSnap.docs[fallbackSnap.docs.length - 1] || null);
+          setHasMore(fallbackSnap.docs.length === BATCH_SIZE);
+      }
+    } finally {
+      setLoadingMerch(false);
+    }
+  };
+
+  const loadMoreMerch = () => {
+    if (data && data.name) {
+      fetchMerch(data.name, false);
+    }
+  };
 
   if (!data) return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>;
 
@@ -360,10 +437,6 @@ export default function GroupPage() {
                     <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.85rem', color: '#6A585B', textTransform: 'uppercase', fontWeight: '700' }}>Fandom</p>
                     <p style={{ margin: 0, color: '#312527', fontWeight: '600', fontSize: '1.1rem' }}>{data.fandomName || '—'}</p>
                   </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.85rem', color: '#6A585B', textTransform: 'uppercase', fontWeight: '700' }}>Total Merch</p>
-                    <p style={{ margin: 0, color: '#312527', fontWeight: '600', fontSize: '1.1rem' }}>{merch.length}</p>
-                  </div>
                 </div>
 
                 {data.note && (
@@ -423,6 +496,38 @@ export default function GroupPage() {
           </div>
         </div>
       </div>
+      
+      {/* Merch Section (Paginated) */}
+      {!isEditing && (
+        <div style={{ borderTop: '2px solid #D4C4C7', paddingTop: '2rem', marginTop: '2rem' }}>
+          <h3 style={{ color: '#312527', fontSize: '1.4rem', marginBottom: '2rem' }}>Latest Merchandise Items</h3>
+          {merch.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              <div className="merch-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}>
+                {merch.map(item => (
+                   <div key={item.id} style={{ backgroundColor: '#D4C4C7', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
+                       <img src={item.imageUrl} alt={item.customName} style={{ width: '100%', height: '120px', objectFit: 'contain', borderRadius: '4px', backgroundColor: '#fff', marginBottom: '0.5rem' }} />
+                       <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#312527', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.customName}</p>
+                       <p style={{ margin: 0, fontSize: '0.75rem', color: '#6A585B' }}>{item.memberName || 'Group'}</p>
+                   </div>
+                ))}
+              </div>
+              
+              {hasMore && (
+                <button 
+                  onClick={loadMoreMerch} 
+                  disabled={loadingMerch}
+                  style={{ alignSelf: 'center', padding: '0.6rem 2rem', backgroundColor: 'transparent', border: '2px solid #8D6E73', borderRadius: '20px', color: '#8D6E73', cursor: loadingMerch ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                >
+                  {loadingMerch ? 'Loading...' : 'Load More Items'}
+                </button>
+              )}
+            </div>
+          ) : (
+             <p style={{ color: '#6A585B', fontStyle: 'italic' }}>No merchandise items found for this group.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,23 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function GroupDirectory() {
   const [groups, setGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'groups'), (snapshot) => {
-      setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsub();
+    const fetchGroups = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'groups'));
+        setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGroups();
   }, []);
 
   const filteredGroups = groups.filter(g =>
     g.name?.toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading groups...</div>;
+  }
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem' }}>

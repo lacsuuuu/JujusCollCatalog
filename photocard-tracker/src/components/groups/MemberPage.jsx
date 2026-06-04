@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, limit, startAfter, orderBy } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
 import ItemDetailModal from '../ui/ItemDetailModal';
@@ -16,7 +16,13 @@ export default function MemberPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  
+  // Pagination State
   const [photocards, setPhotocards] = useState([]);
+  const [lastVisible, setLastVisible] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const BATCH_SIZE = 12;
 
   const [alertMsg, setAlertMsg] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -43,11 +49,10 @@ export default function MemberPage() {
 
           setData(memberDataToSet);
           setEditForm(memberDataToSet);
+          
+          // Initial Fetch for items
+          fetchItems(memberName, true);
         }
-
-        const q = query(collection(db, 'merchandise'), where('memberName', '==', memberName));
-        const querySnapshot = await getDocs(q);
-        setPhotocards(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -55,6 +60,77 @@ export default function MemberPage() {
 
     fetchPageData();
   }, [groupId, memberName]);
+
+  const fetchItems = async (name, isInitial = false) => {
+    if (loadingCards) return;
+    setLoadingCards(true);
+    
+    try {
+      let q = query(
+        collection(db, 'merchandise'), 
+        where('memberName', '==', name),
+        orderBy('addedAt', 'desc'),
+        limit(BATCH_SIZE)
+      );
+      
+      if (!isInitial && lastVisible) {
+        q = query(
+          collection(db, 'merchandise'), 
+          where('memberName', '==', name),
+          orderBy('addedAt', 'desc'),
+          startAfter(lastVisible), 
+          limit(BATCH_SIZE)
+        );
+      }
+
+      const snap = await getDocs(q);
+      const fetchedItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      if (isInitial) {
+        setPhotocards(fetchedItems);
+      } else {
+        setPhotocards(prev => [...prev, ...fetchedItems]);
+      }
+
+      const lastDoc = snap.docs[snap.docs.length - 1];
+      setLastVisible(lastDoc || null);
+      setHasMore(snap.docs.length === BATCH_SIZE);
+      
+    } catch (e) {
+      console.error("Error fetching items:", e);
+      // Fallback query without orderBy if index is missing
+      if (e.message.includes('index')) {
+          console.warn("Missing index for orderBy, falling back to unordered paginated query.");
+          let fallbackQ = query(
+            collection(db, 'merchandise'), 
+            where('memberName', '==', name),
+            limit(BATCH_SIZE)
+          );
+          if (!isInitial && lastVisible) {
+             fallbackQ = query(
+              collection(db, 'merchandise'), 
+              where('memberName', '==', name),
+              startAfter(lastVisible), 
+              limit(BATCH_SIZE)
+            );
+          }
+          const fallbackSnap = await getDocs(fallbackQ);
+          const fbItems = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (isInitial) setPhotocards(fbItems);
+          else setPhotocards(prev => [...prev, ...fbItems]);
+          setLastVisible(fallbackSnap.docs[fallbackSnap.docs.length - 1] || null);
+          setHasMore(fallbackSnap.docs.length === BATCH_SIZE);
+      }
+    } finally {
+      setLoadingCards(false);
+    }
+  };
+
+  const loadMoreItems = () => {
+    if (data && data.name) {
+      fetchItems(data.name, false);
+    }
+  };
 
   if (!data) return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>;
 
@@ -159,14 +235,6 @@ export default function MemberPage() {
     if (indexA !== -1) return -1;
     if (indexB !== -1) return 1;
     return a.localeCompare(b);
-  });
-
-  sortedEras.forEach(era => {
-    groupedPhotocards[era].sort((a, b) => {
-      const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
-      const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
-      return dateA - dateB;
-    });
   });
 
   return (
@@ -444,6 +512,16 @@ export default function MemberPage() {
                     </div>
                   </div>
                 ))}
+                
+                {hasMore && (
+                  <button 
+                    onClick={loadMoreItems} 
+                    disabled={loadingCards}
+                    style={{ alignSelf: 'center', padding: '0.6rem 2rem', backgroundColor: 'transparent', border: '2px solid #8D6E73', borderRadius: '20px', color: '#8D6E73', cursor: loadingCards ? 'not-allowed' : 'pointer', fontWeight: 'bold', marginTop: '1rem' }}
+                  >
+                    {loadingCards ? 'Loading...' : 'Load More Cards'}
+                  </button>
+                )}
               </div>
             ) : (
               <p style={{ color: '#6A585B', fontStyle: 'italic' }}>No photocards logged for this member yet.</p>

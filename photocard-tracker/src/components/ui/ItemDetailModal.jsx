@@ -47,7 +47,7 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
 
   // ROLE-BASED ACCESS CONTROL LOGIC MOVED HERE:
   const isCreator = item?.userId === user?.uid;
-  const role = userRole || 'user'; 
+  const role = userRole || 'profile'; 
   const isAdmin = role === 'admin';
   const isCollab = role === 'collaborator';
   const canEdit = isAdmin || (isCollab && isCreator);
@@ -78,17 +78,19 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
   const handleToggleFavorite = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!user) return; // Guard clause just in case
+    if (!user || !user.uid) {
+      console.error("Cannot favorite: User ID is missing.");
+      return; 
+    }
     
     setEditedItem((prev) => {
       const currentFav = !!prev?.isFavorite;
       const newFavState = !currentFav;
       
       if (item?.id) {
-        const linkId = `${user.uid}_${item.id}`;
-        // Writes to collected_items instead of merchandise
-        setDoc(doc(db, "collected_items", linkId), { 
-          userId: user.uid,
+        const itemRef = doc(db, "profile", user.uid, "collected_items", item.id);
+
+        setDoc(itemRef, { 
           merchId: item.id,
           isFavorite: newFavState 
         }, { merge: true })
@@ -140,9 +142,10 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
         console.warn("Could not update global item. User likely not the creator.", err);
       }
 
-      const linkId = `${user.uid}_${item.id}`;
-      await setDoc(doc(db, "collected_items", linkId), {
-        userId: user.uid,
+      // NEW: Update the item in the user's subcollection
+      const itemRef = doc(db, "profile", user.uid, "collected_items", item.id);
+      
+      await setDoc(itemRef, {
         merchId: item.id,
         status: status || 'unowned',
         updatedAt: new Date()

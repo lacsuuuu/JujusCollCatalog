@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, startAfter, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 import { deleteCloudinaryImage, compressAndUpload } from '../../utils/cloudinaryUtils';
 
@@ -19,7 +19,7 @@ export default function Feed({ user }) {
   const [alertMsg, setAlertMsg] = useState(null);
 
   const BATCH_SIZE = 9;
-  const [postLimit, setPostLimit] = useState(BATCH_SIZE);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState(null);
 
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [expandedCaptions, setExpandedCaptions] = useState(new Set());
@@ -37,23 +37,51 @@ export default function Feed({ user }) {
 
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
+  const fetchPosts = async (isInitial = false) => {
+    if (loading) return;
     setLoading(true);
-    const q = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(postLimit));
+    
+    try {
+      let q = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(BATCH_SIZE));
+      
+      if (!isInitial && lastVisibleDoc) {
+        q = query(collection(db, "posts"), orderBy("timestamp", "desc"), startAfter(lastVisibleDoc), limit(BATCH_SIZE));
+      }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setHasMore(snapshot.docs.length === postLimit);
+      const snapshot = await getDocs(q);
+      const fetchedPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      if (isInitial) {
+        setPosts(fetchedPosts);
+      } else {
+        setPosts(prev => [...prev, ...fetchedPosts]);
+      }
+
+      // Update the cursor to the last document in the current batch
+      const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      setLastVisibleDoc(lastDoc || null);
+      
+      // If we got fewer posts than the batch size, we've reached the end
+      setHasMore(snapshot.docs.length === BATCH_SIZE);
+      
+    } catch (error) {
+      console.error("Error fetching feed:", error);
+      setAlertMsg("Error loading posts.");
+    } finally {
       setLoading(false);
-    }, (error) => {
-      console.error("Error listening to feed:", error);
-      setLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
-  }, [postLimit]);
+  // Fetch initial posts on mount
+  useEffect(() => {
+  if (user) {
+    fetchPosts(true);
+  }
+}, [user]); // Add user as a dependency
 
-  const fetchMorePosts = () => setPostLimit(prev => prev + BATCH_SIZE);
+  const fetchMorePosts = () => {
+    fetchPosts(false);
+  };
 
   const formatPostDate = (timestamp) => {
     if (!timestamp) return 'Just now';
@@ -89,6 +117,7 @@ export default function Feed({ user }) {
         }
       }
       await deleteDoc(doc(db, "posts", confirmDeleteId));
+      setPosts(prev => prev.filter(p => p.id !== confirmDeleteId));
     } catch {
       setAlertMsg("Failed to delete post.");
     } finally {
@@ -139,6 +168,10 @@ export default function Feed({ user }) {
         imageUrl: finalUrls[0],
       });
 
+      setPosts(prev => prev.map(p => 
+        p.id === editingPost.id ? { ...p, caption: editCaption, imageUrls: finalUrls, imageUrl: finalUrls[0] } : p
+      ));
+      
       setEditingPost(null);
       setAlertMsg("Post updated!");
     } catch (error) {

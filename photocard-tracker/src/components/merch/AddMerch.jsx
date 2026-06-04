@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
-import { collection, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import imageCompression from 'browser-image-compression';
 import ThemeAlert from '../ui/ThemeAlert';
@@ -81,58 +81,6 @@ const CustomSelect = ({ value, onChange, options, placeholder, disabled, require
   );
 };
 
-const AutocompleteInput = ({ value, onChange, options, placeholder, disabled, required, style }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredOptions = options.filter(opt => opt.toLowerCase().includes((value || '').toLowerCase()));
-
-  return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%', boxSizing: 'border-box', ...style }}>
-      <input
-        className="theme-input"
-        style={{
-          padding: '0.7rem 1rem', borderRadius: '6px', border: 'none',
-          backgroundColor: disabled ? '#A08D90' : '#C2B0B4',
-          color: '#312527', fontSize: '0.95rem', outline: 'none',
-          width: '100%', boxSizing: 'border-box',
-          cursor: disabled ? 'not-allowed' : 'text',
-          opacity: disabled ? 0.5 : 1,
-        }}
-        type="text"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-        onFocus={() => setIsOpen(true)}
-        disabled={disabled}
-        required={required}
-      />
-      {isOpen && !disabled && filteredOptions.length > 0 && (
-        <div className="custom-scroll" style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#F9F6F0',
-          border: '1px solid #C2B0B4', borderRadius: '6px', marginTop: '4px',
-          maxHeight: '180px', overflowY: 'auto', overflowX: 'hidden', zIndex: 30,
-          boxShadow: '0 4px 16px rgba(49,37,39,0.15)', padding: '0.25rem 0'
-        }}>
-          {filteredOptions.map((opt, i) => (
-            <div key={i} className="theme-dropdown-item" onMouseDown={(e) => { e.preventDefault(); onChange(opt); setIsOpen(false); }}>
-              {opt}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const categoryOptions = [
   { value: 'Photocard', label: 'Photocard' },
   { value: 'Album', label: 'Album' },
@@ -160,10 +108,7 @@ const pcFinishOptions = [
 ];
 
 export default function AddMerch() {
-  const [merch, setMerch] = useState([]);
   const [groups, setGroups] = useState([]);
-  
-  // Independent Auth State
   const [user, setUser] = useState(undefined); 
   
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -194,31 +139,30 @@ export default function AddMerch() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Listen to Firebase directly to secure the component state
     const auth = getAuth();
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
 
-    const unsubGroups = onSnapshot(collection(db, 'groups'), (snapshot) => {
-      setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    const unsubMerch = onSnapshot(collection(db, 'merchandise'), (snapshot) => {
-      setMerch(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    // OPTIMIZED: Fetch groups once instead of a real-time listener to save reads
+    const fetchGroups = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'groups'));
+        setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (error) {
+        console.error("Failed to fetch groups:", error);
+      }
+    };
+    fetchGroups();
     
     return () => { 
-      unsubGroups(); 
-      unsubMerch(); 
       unsubAuth();
     };
   }, []);
 
-  // Show nothing while the component is checking auth state or if not logged in
   if (!user) return null;
 
   const currentGroup = groups.find(g => g.name === selectedGroup);
-  const uniqueItemNames = [...new Set(merch.map(i => i.customName).filter(Boolean))].sort();
 
   const handleGroupChange = (val) => {
     setSelectedGroup(val);
@@ -289,7 +233,6 @@ export default function AddMerch() {
         finalMemberName = selectedMember;
       }
 
-      // CRITICAL FIX: Added userId to link this item to the creator!
       const payload = {
         customName,
         category,
@@ -350,7 +293,6 @@ export default function AddMerch() {
         .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
 
-        /* The CSS Magic to make the invisible input fully clickable across the entire box */
         input[type="month"]::-webkit-calendar-picker-indicator {
           position: absolute;
           top: 0;
@@ -456,12 +398,18 @@ export default function AddMerch() {
         )}
 
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <AutocompleteInput
-            options={uniqueItemNames}
-            value={customName}
-            onChange={setCustomName}
+          <input
+            className="theme-input"
+            style={{
+              padding: '0.7rem 1rem', borderRadius: '6px', border: 'none',
+              backgroundColor: '#C2B0B4', color: '#312527', fontSize: '0.95rem',
+              outline: 'none', width: '100%', boxSizing: 'border-box',
+              flex: '2 1 250px'
+            }}
+            type="text"
             placeholder="Item Name (e.g. Apple Music 3.0)"
-            style={{ flex: '2 1 250px' }}
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
             required
           />
 
@@ -491,7 +439,7 @@ export default function AddMerch() {
                 <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>{category === 'Photocard' ? 'Change Front' : 'Change Image'}</p>
               </div>
             ) : (
-              <><p style={{ margin: 0 }}><img src="/frame.svg" alt="Frame" width="25" height="25" /></p><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>{category === 'Photocard' ? 'Front Image' : 'Drop image here'}</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
+              <><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>{category === 'Photocard' ? 'Front Image' : 'Drop image here'}</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
             )}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={e => handleFile(e.target.files[0])} style={{ display: 'none' }} />
           </div>
@@ -514,7 +462,7 @@ export default function AddMerch() {
                   <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>Change Back</p>
                 </div>
               ) : (
-                <><p style={{ margin: 0, opacity: 0.5 }}><img src="/frame.svg" alt="Frame" width="25" height="25" /></p><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Backprint</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
+                <><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Backprint</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
               )}
               <input ref={backFileInputRef} type="file" accept="image/*" onChange={e => handleBackFile(e.target.files[0])} style={{ display: 'none' }} />
             </div>

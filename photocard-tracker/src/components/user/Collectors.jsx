@@ -1,25 +1,64 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+// ADDED: query, limit, and startAfter for pagination
+import { collection, getDocs, query, limit, startAfter } from 'firebase/firestore';
 import UserSearch from '../ui/UserSearch'; // Adjust this path if needed
 
 export default function Collectors() {
   const [collectors, setCollectors] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Pagination States
+  const [lastDoc, setLastDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    const fetchProfiles = async () => {
+    const fetchInitialProfiles = async () => {
       try {
-        const snap = await getDocs(collection(db, 'profile'));
-        setCollectors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        // Fetch only the first 20 profiles
+        const q = query(collection(db, 'profile'), limit(20));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+          setCollectors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          setLastDoc(snap.docs[snap.docs.length - 1]);
+          setHasMore(snap.docs.length === 20); // If we hit exactly 20, there are likely more
+        } else {
+          setHasMore(false);
+        }
       } catch (error) {
         console.error("Error fetching profiles:", error);
       }
       setLoading(false);
     };
-    fetchProfiles();
+    fetchInitialProfiles();
   }, []);
+
+  // The Load More function 
+  const loadMore = async () => {
+    if (!hasMore || loadingMore || !lastDoc) return;
+    setLoadingMore(true);
+    
+    try {
+      // Pick up exactly where the last query left off
+      const q = query(collection(db, 'profile'), startAfter(lastDoc), limit(20));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        // Glue the new users to the bottom of the list in browser memory
+        setCollectors(prev => [...prev, ...snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))]);
+        setLastDoc(snap.docs[snap.docs.length - 1]);
+        setHasMore(snap.docs.length === 20);
+      } else {
+        setHasMore(false); // We've reached the end of the database
+      }
+    } catch (error) {
+      console.error("Error loading more profiles:", error);
+    }
+    setLoadingMore(false);
+  };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading community...</div>;
 
@@ -68,6 +107,28 @@ export default function Collectors() {
           </Link>
         ))}
       </div>
+      
+      {/* ADDED: Load More Button */}
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '3rem' }}>
+          <button 
+            onClick={loadMore} 
+            disabled={loadingMore}
+            style={{
+              padding: '0.75rem 2rem',
+              backgroundColor: loadingMore ? '#D4C4C7' : '#8D6E73',
+              color: '#FFF',
+              border: 'none',
+              borderRadius: '30px',
+              fontWeight: 'bold',
+              cursor: loadingMore ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            {loadingMore ? 'Loading...' : 'Load More'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

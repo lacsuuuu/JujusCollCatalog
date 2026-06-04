@@ -42,9 +42,15 @@ export function useProfile(userId) {
     });
 
     // 3. TARGETED FETCH: Get user's collected links first, then fetch ONLY those merch items
-    const collectedQuery = query(collection(db, 'collected_items'), where('userId', '==', userId));
-    const unsubCollected = onSnapshot(collectedQuery, async (snapshot) => {
-      const links = snapshot.docs.map(d => d.data());
+    // FIXED: Point to the correct subcollection path
+    const collectedRef = collection(db, 'profile', userId, 'collected_items');
+    
+    const unsubCollected = onSnapshot(collectedRef, async (snapshot) => {
+      // FIXED: Inject the document ID as merchId
+      const links = snapshot.docs.map(d => ({
+        ...d.data(),
+        merchId: d.id
+      }));
       
       if (links.length === 0) {
         setMerch([]);
