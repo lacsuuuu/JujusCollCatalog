@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
-import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
+import { deleteCloudinaryImage, compressAndUpload } from '../../utils/cloudinaryUtils';
 
 const arrowStyle = {
   position: 'absolute', top: '50%', transform: 'translateY(-50%)',
@@ -130,7 +130,7 @@ export default function Feed({ user }) {
     setAlertMsg("Saving changes...");
     try {
       const finalUrls = await Promise.all(
-        editPhotos.map(photo => photo.file ? uploadToCloudinary(photo.file) : photo.url)
+        editPhotos.map(photo => photo.file ? compressAndUpload(photo.file) : photo.url)
       );
 
       await updateDoc(doc(db, "posts", editingPost.id), {
