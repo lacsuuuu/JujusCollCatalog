@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
-import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
+import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
 
 export default function GroupPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const { currentUser: user } = useAuth();
 
   const [data, setData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -19,17 +20,11 @@ export default function GroupPage() {
   const [dragging, setDragging] = useState(false);
   const [memberPage, setMemberPage] = useState(0);
   const membersPerPage = 6;
-  const [user, setUser] = useState(null); 
 
   const fileInputRef = useRef(null);
   const iconInputRef = useRef(null);
 
   useEffect(() => {
-    const auth = getAuth();
-    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-
     const fetchData = async () => {
       try {
         const groupRef = doc(db, 'groups', groupId);
@@ -47,8 +42,6 @@ export default function GroupPage() {
       }
     };
     fetchData();
-
-    return () => unsubAuth();
   }, [groupId]);
 
   if (!data) return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>;
@@ -73,8 +66,8 @@ export default function GroupPage() {
     const updatedPhotos = [...(editForm.conceptPhotos || [])];
     if (updatedPhotos.length === 0) return;
     const removedPhoto = updatedPhotos.splice(currentPhotoIndex, 1)[0];
-    
-    if (removedPhoto && removedPhoto.url && removedPhoto.url.includes('cloudinary.com')) {
+
+    if (removedPhoto?.url?.includes('cloudinary.com')) {
       await deleteCloudinaryImage(removedPhoto.url);
     }
 
@@ -86,34 +79,17 @@ export default function GroupPage() {
     try {
       setAlertMsg("Uploading and saving...");
 
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const finalGroupImageUrl = editForm.groupImageFile
+        ? await uploadToCloudinary(editForm.groupImageFile)
+        : editForm.groupImageUrl || '';
 
-      let finalGroupImageUrl = editForm.groupImageUrl || '';
-      if (editForm.groupImageFile) {
-        const fd = new FormData();
-        fd.append('file', editForm.groupImageFile);
-        fd.append('upload_preset', uploadPreset);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: fd });
-        const uploadData = await res.json();
-        if (uploadData.secure_url) finalGroupImageUrl = uploadData.secure_url;
-        else throw new Error("Icon upload failed");
-      }
-
-      let finalPhotos = [];
-      for (const photo of (editForm.conceptPhotos || [])) {
-        if (photo.file) {
-          const fd = new FormData();
-          fd.append('file', photo.file);
-          fd.append('upload_preset', uploadPreset);
-          const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: fd });
-          const uploadData = await res.json();
-          if (uploadData.secure_url) finalPhotos.push({ url: uploadData.secure_url, era: photo.era });
-          else throw new Error("Photo upload failed");
-        } else {
-          finalPhotos.push(photo);
-        }
-      }
+      const finalPhotos = await Promise.all(
+        (editForm.conceptPhotos || []).map(photo =>
+          photo.file
+            ? uploadToCloudinary(photo.file).then(url => ({ url, era: photo.era }))
+            : Promise.resolve(photo)
+        )
+      );
 
       const finalSubmission = { ...editForm, groupImageUrl: finalGroupImageUrl, conceptPhotos: finalPhotos };
       delete finalSubmission.groupImageFile;
@@ -122,7 +98,7 @@ export default function GroupPage() {
       setData(finalSubmission);
       setAlertMsg("Group info updated!");
       setIsEditing(false);
-    } catch (e) {
+    } catch {
       setAlertMsg("Error saving. Check your connection.");
     }
   };
@@ -168,7 +144,6 @@ export default function GroupPage() {
         .themed-textarea::-webkit-scrollbar-thumb { background: #A08D90; border-radius: 6px; border: 2px solid #C2B0B4; }
         .themed-textarea::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
         input[type="month"]::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
-
         @media (max-width: 768px) {
           .hero-layout { flex-direction: column !important; height: auto !important; }
           .hero-img-box { min-height: 350px !important; }
@@ -217,11 +192,7 @@ export default function GroupPage() {
               <button
                 className="edit-btn-mobile"
                 onClick={() => setIsEditing(true)}
-                style={{ display: 'none', position: 'absolute', right: '1rem', top: '1rem',
-                  padding: '0.5rem 1.2rem', backgroundColor: 'rgba(230,218,221,0.85)',
-                  backdropFilter: 'blur(4px)', border: 'none', borderRadius: '6px',
-                  color: '#312527', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
-                  whiteSpace: 'nowrap', zIndex: 30, alignItems: 'center' }}
+                style={{ display: 'none', position: 'absolute', right: '1rem', top: '1rem', padding: '0.5rem 1.2rem', backgroundColor: 'rgba(230,218,221,0.85)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: '6px', color: '#312527', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', zIndex: 30, alignItems: 'center' }}
               >
                 Edit Profile
               </button>
@@ -363,7 +334,7 @@ export default function GroupPage() {
                   <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#C2B0B4', overflow: 'hidden', border: '3px solid #E6DADD', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', flexShrink: 0 }}>
                     <img src={data.groupImageUrl || '/bunny.png'} alt={data.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                   </div>
-                  
+
                   <div style={{ flex: 1, width: '100%' }}>
                     <div className="hero-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h2 style={{ margin: 0, color: '#312527', fontSize: '2.5rem' }}>{data.name}</h2>
@@ -439,16 +410,7 @@ export default function GroupPage() {
                             <button
                               key={i}
                               onClick={() => setMemberPage(i)}
-                              style={{
-                                width: memberPage === i ? '20px' : '8px',
-                                height: '8px',
-                                borderRadius: '999px',
-                                border: 'none',
-                                backgroundColor: memberPage === i ? '#8D6E73' : '#C2B0B4',
-                                cursor: 'pointer',
-                                padding: 0,
-                                transition: 'all 0.2s ease',
-                              }}
+                              style={{ width: memberPage === i ? '20px' : '8px', height: '8px', borderRadius: '999px', border: 'none', backgroundColor: memberPage === i ? '#8D6E73' : '#C2B0B4', cursor: 'pointer', padding: 0, transition: 'all 0.2s ease' }}
                             />
                           ))}
                         </div>
@@ -460,7 +422,6 @@ export default function GroupPage() {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

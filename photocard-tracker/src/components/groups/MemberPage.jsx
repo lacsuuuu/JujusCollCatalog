@@ -2,50 +2,45 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
-import ItemDetailModal from '../ui/ItemDetailModal'; 
-import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
+import ItemDetailModal from '../ui/ItemDetailModal';
+import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
 
 export default function MemberPage() {
   const { groupId, memberName } = useParams();
   const navigate = useNavigate();
-  
+  const { currentUser: user } = useAuth();
+
   const [data, setData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [photocards, setPhotocards] = useState([]);
-  
+
   const [alertMsg, setAlertMsg] = useState(null);
   const [dragging, setDragging] = useState(false);
-  
-  const [selectedItem, setSelectedItem] = useState(null); 
-  const [user, setUser] = useState(null); 
-  
+
+  const [selectedItem, setSelectedItem] = useState(null);
+
   const fileInputRef = useRef(null);
   const iconInputRef = useRef(null);
 
   useEffect(() => {
-    const auth = getAuth();
-    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-
     const fetchPageData = async () => {
       try {
         const groupRef = doc(db, 'groups', groupId);
         const groupSnap = await getDoc(groupRef);
-        
+
         if (groupSnap.exists()) {
           const groupData = groupSnap.data();
           const membersList = groupData.membersData || [];
           const foundMember = membersList.find(m => m.name === memberName);
-          
-          let memberDataToSet = foundMember 
-            ? { ...foundMember, groupName: groupData.name, groupId: groupId, groupEras: groupData.eras || [] } 
-            : { name: memberName, groupName: groupData.name, groupId: groupId, groupEras: groupData.eras || [] };
-            
+
+          const memberDataToSet = foundMember
+            ? { ...foundMember, groupName: groupData.name, groupId, groupEras: groupData.eras || [] }
+            : { name: memberName, groupName: groupData.name, groupId, groupEras: groupData.eras || [] };
+
           setData(memberDataToSet);
           setEditForm(memberDataToSet);
         }
@@ -53,14 +48,12 @@ export default function MemberPage() {
         const q = query(collection(db, 'merchandise'), where('memberName', '==', memberName));
         const querySnapshot = await getDocs(q);
         setPhotocards(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (error) { 
-        console.error("Error fetching data:", error); 
+      } catch (error) {
+        console.error("Error fetching data:", error);
       }
     };
-    
-    fetchPageData();
 
-    return () => unsubAuth();
+    fetchPageData();
   }, [groupId, memberName]);
 
   if (!data) return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>;
@@ -71,10 +64,10 @@ export default function MemberPage() {
 
   const handlePhotoFiles = (files) => {
     if (!files || files.length === 0) return;
-    const newPhotos = Array.from(files).map(file => ({ url: URL.createObjectURL(file), era: 'New Era', file: file }));
+    const newPhotos = Array.from(files).map(file => ({ url: URL.createObjectURL(file), era: 'New Era', file }));
     setEditForm(prev => {
       const updatedPhotos = [...(prev.conceptPhotos || []), ...newPhotos];
-      setCurrentPhotoIndex(updatedPhotos.length - 1); 
+      setCurrentPhotoIndex(updatedPhotos.length - 1);
       return { ...prev, conceptPhotos: updatedPhotos };
     });
   };
@@ -89,8 +82,8 @@ export default function MemberPage() {
     const updatedPhotos = [...conceptPhotos];
     if (updatedPhotos.length === 0) return;
     const removedPhoto = updatedPhotos.splice(currentPhotoIndex, 1)[0];
-    
-    if (removedPhoto && removedPhoto.url && removedPhoto.url.includes('cloudinary.com')) {
+
+    if (removedPhoto?.url?.includes('cloudinary.com')) {
       await deleteCloudinaryImage(removedPhoto.url);
     }
 
@@ -101,40 +94,21 @@ export default function MemberPage() {
   const handleSave = async () => {
     try {
       setAlertMsg("Uploading photos and saving...");
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-      let finalProfileImageUrl = editForm.profileImageUrl || '';
-      
-      if (editForm.profileImageFile) {
-        const iconData = new FormData(); 
-        iconData.append('file', editForm.profileImageFile); 
-        iconData.append('upload_preset', uploadPreset);
-        const iconResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: iconData });
-        const iconUploadData = await iconResponse.json();
-        
-        if (iconUploadData.secure_url) finalProfileImageUrl = iconUploadData.secure_url;
-        else throw new Error("Cloudinary profile icon upload failed");
-      }
-      
-      let finalPhotos = [];
-      const currentPhotos = editForm.conceptPhotos || [];
-      
-      for (let i = 0; i < currentPhotos.length; i++) {
-        const photo = currentPhotos[i];
-        if (photo.file) {
-          const formData = new FormData(); 
-          formData.append('file', photo.file); 
-          formData.append('upload_preset', uploadPreset);
-          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
-          const uploadData = await response.json();
-          
-          if (uploadData.secure_url) finalPhotos.push({ url: uploadData.secure_url, era: photo.era });
-          else throw new Error("Cloudinary concept photo upload failed");
-        } else { 
-          finalPhotos.push(photo); 
-        }
-      }
-      
+
+      // Upload profile image if a new file was selected
+      const finalProfileImageUrl = editForm.profileImageFile
+        ? await uploadToCloudinary(editForm.profileImageFile)
+        : editForm.profileImageUrl || '';
+
+      // Upload any new concept photos, keep existing URLs as-is
+      const finalPhotos = await Promise.all(
+        (editForm.conceptPhotos || []).map(photo =>
+          photo.file
+            ? uploadToCloudinary(photo.file).then(url => ({ url, era: photo.era }))
+            : Promise.resolve(photo)
+        )
+      );
+
       const finalSubmission = { ...editForm, profileImageUrl: finalProfileImageUrl, conceptPhotos: finalPhotos };
       delete finalSubmission.profileImageFile;
 
@@ -142,19 +116,19 @@ export default function MemberPage() {
       const groupSnap = await getDoc(groupRef);
       const currentMembersData = groupSnap.data().membersData || [];
       const memberIndex = currentMembersData.findIndex(m => m.name === memberName);
-      
-      let newMembersData = [...currentMembersData];
+
+      const newMembersData = [...currentMembersData];
       if (memberIndex >= 0) newMembersData[memberIndex] = finalSubmission;
       else newMembersData.push(finalSubmission);
-      
+
       await updateDoc(groupRef, { membersData: newMembersData });
-      
-      setData(finalSubmission); 
+
+      setData(finalSubmission);
       setEditForm(finalSubmission);
-      setAlertMsg("Member information updated!"); 
+      setAlertMsg("Member information updated!");
       setIsEditing(false);
-    } catch (error) { 
-      setAlertMsg("Error saving info. Check your connection."); 
+    } catch {
+      setAlertMsg("Error saving info. Check your connection.");
     }
   };
 
@@ -164,26 +138,24 @@ export default function MemberPage() {
   const formatDate = (val) => {
     if (!val) return 'Unknown';
     const parts = val.split('-');
-    if (parts.length === 2) return `${parts[1]}/01/${parts[0]}`; 
-    if (parts.length >= 3) return `${parts[1]}/${parts[2]}/${parts[0]}`; 
+    if (parts.length === 2) return `${parts[1]}/01/${parts[0]}`;
+    if (parts.length >= 3) return `${parts[1]}/${parts[2]}/${parts[0]}`;
     return val;
   };
 
   const officialEras = data.groupEras || [];
 
   const groupedPhotocards = {};
-  photocards.forEach(card => { 
-    const era = card.era || 'Unknown Era'; 
-    if (!groupedPhotocards[era]) groupedPhotocards[era] = []; 
-    groupedPhotocards[era].push(card); 
+  photocards.forEach(card => {
+    const era = card.era || 'Unknown Era';
+    if (!groupedPhotocards[era]) groupedPhotocards[era] = [];
+    groupedPhotocards[era].push(card);
   });
 
   const sortedEras = Object.keys(groupedPhotocards).sort((a, b) => {
     const indexA = officialEras.indexOf(a);
     const indexB = officialEras.indexOf(b);
-    
     if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-    
     if (indexA !== -1) return -1;
     if (indexB !== -1) return 1;
     return a.localeCompare(b);
@@ -193,7 +165,7 @@ export default function MemberPage() {
     groupedPhotocards[era].sort((a, b) => {
       const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
       const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
-      return dateA - dateB; 
+      return dateA - dateB;
     });
   });
 
@@ -221,9 +193,7 @@ export default function MemberPage() {
         .themed-textarea::-webkit-scrollbar-track { background: transparent; }
         .themed-textarea::-webkit-scrollbar-thumb { background: #A08D90; border-radius: 6px; border: 2px solid #C2B0B4; }
         .themed-textarea::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
-        
         input[type="date"]::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
-
         @media (max-width: 768px) {
           .hero-layout { flex-direction: column !important; height: auto !important; }
           .hero-img-box { min-height: 350px !important; }
@@ -236,7 +206,7 @@ export default function MemberPage() {
           .edit-btn-mobile { display: none !important; }
         }
       `}</style>
-      
+
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} hideButton={alertMsg === "Uploading photos and saving..."} />
 
       <button type="button" onClick={() => navigate('/artists')} style={{ background: 'none', border: 'none', color: '#6A585B', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', outline: 'none', padding: 0, transition: 'color 0.2s' }} onMouseOver={(e) => e.currentTarget.style.color = '#312527'} onMouseOut={(e) => e.currentTarget.style.color = '#6A585B'}>
@@ -245,19 +215,14 @@ export default function MemberPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div className="hero-layout" style={{ display: 'flex', gap: '2rem', height: '500px' }}>
-          
-          <div className="hero-img-box" style={{ flex: 1, backgroundColor: '#D4C4C7', borderRadius: '12px', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }} 
-               onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if(isEditing) setDragging(true); }} >
-            
+
+          <div className="hero-img-box" style={{ flex: 1, backgroundColor: '#D4C4C7', borderRadius: '12px', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}
+               onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (isEditing) setDragging(true); }}>
+
             {dragging && isEditing && (
-              <div 
-                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); }} 
-                onDrop={(e) => { 
-                  e.preventDefault(); 
-                  e.stopPropagation(); 
-                  setDragging(false); 
-                  if(isEditing && e.dataTransfer.files) handlePhotoFiles(e.dataTransfer.files); 
-                }}
+              <div
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); if (isEditing && e.dataTransfer.files) handlePhotoFiles(e.dataTransfer.files); }}
                 style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(141, 110, 115, 0.85)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FFF', fontSize: '1.2rem', fontWeight: 'bold', border: '4px dashed #FFF', margin: '1rem', borderRadius: '12px' }}>
                 Drop photos here
               </div>
@@ -267,11 +232,7 @@ export default function MemberPage() {
               <button
                 className="edit-btn-mobile"
                 onClick={() => { setIsEditing(true); setEditForm(data); }}
-                style={{ display: 'none', position: 'absolute', right: '1rem', top: '1rem',
-                  padding: '0.5rem 1.2rem', backgroundColor: 'rgba(230,218,221,0.85)',
-                  backdropFilter: 'blur(4px)', border: 'none', borderRadius: '6px',
-                  color: '#312527', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
-                  whiteSpace: 'nowrap', zIndex: 30, alignItems: 'center' }}
+                style={{ display: 'none', position: 'absolute', right: '1rem', top: '1rem', padding: '0.5rem 1.2rem', backgroundColor: 'rgba(230,218,221,0.85)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: '6px', color: '#312527', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', zIndex: 30, alignItems: 'center' }}
               >
                 Edit Profile
               </button>
@@ -289,9 +250,9 @@ export default function MemberPage() {
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1.5rem 1rem 1rem', background: 'linear-gradient(transparent, rgba(49,37,39,0.85))', color: '#FFF', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', zIndex: 20 }}>
                   <div style={{ flex: 1 }}>
                     {isEditing ? (
-                       <input className="theme-input" value={conceptPhotos[currentPhotoIndex].era} onChange={(e) => { const newPhotos = [...conceptPhotos]; newPhotos[currentPhotoIndex] = { ...newPhotos[currentPhotoIndex], era: e.target.value }; setEditForm({...editForm, conceptPhotos: newPhotos}); }} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid white', color: 'white', fontSize: '1rem', fontWeight: 'bold', outline: 'none', padding: '0.2rem', width: '80%' }} />
+                      <input className="theme-input" value={conceptPhotos[currentPhotoIndex].era} onChange={(e) => { const newPhotos = [...conceptPhotos]; newPhotos[currentPhotoIndex] = { ...newPhotos[currentPhotoIndex], era: e.target.value }; setEditForm({ ...editForm, conceptPhotos: newPhotos }); }} style={{ background: 'transparent', border: 'none', borderBottom: '1px solid white', color: 'white', fontSize: '1rem', fontWeight: 'bold', outline: 'none', padding: '0.2rem', width: '80%' }} />
                     ) : (
-                       <p style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>Era: {conceptPhotos[currentPhotoIndex].era}</p>
+                      <p style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>Era: {conceptPhotos[currentPhotoIndex].era}</p>
                     )}
                   </div>
                   {conceptPhotos.length > 1 && <span style={{ fontSize: '0.85rem', fontWeight: '700', backgroundColor: 'rgba(49, 37, 39, 0.6)', padding: '0.3rem 0.7rem', borderRadius: '20px', backdropFilter: 'blur(4px)', marginLeft: '1rem', flexShrink: 0 }}>{currentPhotoIndex + 1} / {conceptPhotos.length}</span>}
@@ -304,7 +265,7 @@ export default function MemberPage() {
                 )}
               </>
             ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6A585B', padding: '2rem', textAlign: 'center', cursor: isEditing ? 'pointer' : 'default' }} onClick={() => { if(isEditing) fileInputRef.current.click(); }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6A585B', padding: '2rem', textAlign: 'center', cursor: isEditing ? 'pointer' : 'default' }} onClick={() => { if (isEditing) fileInputRef.current.click(); }}>
                 {isEditing ? "Drag and drop photos here or click to browse!" : "No concept photos available yet."}
               </div>
             )}
@@ -320,12 +281,14 @@ export default function MemberPage() {
                       <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FFF', fontSize: '0.75rem', fontWeight: 'bold' }}><img src="/cam.svg" alt="cam" width="20" height="20" /></div>
                     </div>
                     {editForm.profileImageUrl && (
-                      <button type="button" onClick={async () => { 
+                      <button type="button" onClick={async () => {
                         if (editForm.profileImageUrl?.includes('cloudinary.com')) {
                           await deleteCloudinaryImage(editForm.profileImageUrl);
                         }
-                        setEditForm(prev => ({ ...prev, profileImageUrl: '', profileImageFile: null })); 
-                      }} className="del-btn" style={{ position: 'absolute', top: '0', right: '0', background: '#312527', opacity: 1, color: '#E6DADD', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="Remove Icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                        setEditForm(prev => ({ ...prev, profileImageUrl: '', profileImageFile: null }));
+                      }} className="del-btn" style={{ position: 'absolute', top: '0', right: '0', background: '#312527', opacity: 1, color: '#E6DADD', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="Remove Icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
                     )}
                   </div>
                   <h3 style={{ margin: 0, color: '#312527', fontSize: '1.6rem' }}>Edit Member</h3>
@@ -334,10 +297,10 @@ export default function MemberPage() {
 
                 <label style={{ display: 'block', textAlign: 'left', fontSize: '0.8rem', color: '#6A585B', fontWeight: '600', marginBottom: '0.3rem' }}>Stage Name</label>
                 <input className="theme-input" style={inputStyle} value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} />
-                
+
                 <label style={{ display: 'block', textAlign: 'left', fontSize: '0.8rem', color: '#6A585B', fontWeight: '600', marginBottom: '0.3rem' }}>Hangul Name</label>
                 <input className="theme-input" style={inputStyle} value={editForm.hangulName || ''} onChange={e => setEditForm({...editForm, hangulName: e.target.value})} />
-                
+
                 <label style={{ display: 'block', textAlign: 'left', fontSize: '0.8rem', color: '#6A585B', fontWeight: '600', marginBottom: '0.3rem' }}>Birthday</label>
                 <div className="theme-date-picker" style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: '#C2B0B4', borderRadius: '6px', padding: '0.7rem 1rem', width: '100%', boxSizing: 'border-box', transition: 'box-shadow 0.2s', cursor: 'pointer', marginBottom: '0.8rem' }}>
                   <span style={{ flex: 1, textAlign: 'left', color: '#312527', fontSize: '0.95rem', fontWeight: '500', pointerEvents: 'none' }}>
@@ -346,10 +309,10 @@ export default function MemberPage() {
                   <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                   <input type="date" className="theme-input" value={editForm.birthday && editForm.birthday.length === 7 ? editForm.birthday + '-01' : (editForm.birthday || '')} onChange={e => setEditForm({ ...editForm, birthday: e.target.value })} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                 </div>
-                
+
                 <label style={{ display: 'block', textAlign: 'left', fontSize: '0.8rem', color: '#6A585B', fontWeight: '600', marginBottom: '0.3rem' }}>Representative Animal</label>
                 <input className="theme-input" style={inputStyle} value={editForm.animal || ''} onChange={e => setEditForm({...editForm, animal: e.target.value})} />
-                
+
                 <label style={{ display: 'block', textAlign: 'left', fontSize: '0.8rem', color: '#6A585B', fontWeight: '600', marginBottom: '0.3rem' }}>Note</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.6rem' }}>
                   <textarea
@@ -385,26 +348,17 @@ export default function MemberPage() {
                       <h2 style={{ margin: 0, color: '#312527', fontSize: '2.5rem', lineHeight: '1.1' }}>
                         {data.name} <span style={{ fontSize: '1.5rem', color: '#6A585B', fontWeight: '400', marginLeft: '0.4rem' }}>{data.hangulName}</span>
                       </h2>
-                      <p 
+                      <p
                         onClick={() => navigate(`/groups/${groupId}`)}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#A08D90'} 
-                        onMouseLeave={(e) => e.currentTarget.style.color = '#8D6E73'} 
-                        style={{ 
-                          margin: '0.4rem 0 0 0', 
-                          color: '#8D6E73', 
-                          fontWeight: '700', 
-                          textTransform: 'uppercase', 
-                          letterSpacing: '0.1em', 
-                          fontSize: '0.9rem', 
-                          cursor: 'pointer',
-                          transition: 'color 0.2s ease' 
-                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = '#A08D90'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = '#8D6E73'}
+                        style={{ margin: '0.4rem 0 0 0', color: '#8D6E73', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.9rem', cursor: 'pointer', transition: 'color 0.2s ease' }}
                       >
                         {data.groupName}
                       </p>
                     </div>
                   </div>
-                  
+
                   {user && !isEditing && (
                     <button
                       className="edit-btn-desktop"
@@ -427,7 +381,7 @@ export default function MemberPage() {
                       <p style={{ margin: 0, color: '#312527', fontSize: '1.8rem' }}>{data.animal || '?'}</p>
                     </div>
                   </div>
-                  
+
                   <div style={{ gridColumn: 'span 2', marginTop: '0.5rem' }}>
                     <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#6A585B', textTransform: 'uppercase', fontWeight: '700' }}>Note</p>
                     <div className="custom-scroll" onWheel={e => { e.stopPropagation(); }} style={{ color: '#312527', fontSize: '0.95rem', fontWeight: '500', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto', textAlign: 'left' }}>
@@ -461,7 +415,6 @@ export default function MemberPage() {
                         return (
                           <div key={card.id} className="merch-card" style={{ borderRadius: '12px', backgroundColor: '#D4C4C7', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                             <div onClick={() => setSelectedItem(card)} style={{ cursor: 'pointer', width: '100%', aspectRatio: '1 / 1.4', padding: '0.6rem', boxSizing: 'border-box', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              
                               {hasBackprint ? (
                                 <div className="flip-container" style={{ width: '100%', height: '100%' }}>
                                   <div className="flipper" style={{ width: '100%', height: '100%' }}>

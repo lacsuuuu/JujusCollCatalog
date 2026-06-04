@@ -27,17 +27,17 @@ const sectionStyle = {
 export default function GroupManager() {
   const [groups, setGroups] = useState([]);
   const [newGroupName, setNewGroupName] = useState('');
-  const [newMember, setNewMember] = useState({}); 
-  const [newEra, setNewEra] = useState({});         
-  const [expanded, setExpanded] = useState({});     
+  const [newMember, setNewMember] = useState({});
+  const [newEra, setNewEra] = useState({});
+  const [expanded, setExpanded] = useState({});
   const [alertMsg, setAlertMsg] = useState(null);
-  const [confirmAction, setConfirmAction] = useState(null); 
+  const [confirmAction, setConfirmAction] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [draggedIdx, setDraggedIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
 
-  const [draggedSub, setDraggedSub] = useState(null); 
+  const [draggedSub, setDraggedSub] = useState(null);
   const [dragOverSub, setDragOverSub] = useState(null);
 
   const [editingGroupId, setEditingGroupId] = useState(null);
@@ -57,20 +57,34 @@ export default function GroupManager() {
   const handleAddGroup = async () => {
     const name = newGroupName.trim();
     if (!name) return;
-    await addDoc(collection(db, 'groups'), { name, members: [], eras: [], order: groups.length });
-    setNewGroupName('');
+    try {
+      await addDoc(collection(db, 'groups'), { name, members: [], eras: [], order: groups.length });
+      setNewGroupName('');
+    } catch {
+      setAlertMsg("Error adding group.");
+    }
   };
 
   const handleDeleteGroup = (groupId) => {
     setConfirmAction({
       message: 'Delete this group and all its data?',
-      onConfirm: async () => { await deleteDoc(doc(db, 'groups', groupId)); }
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'groups', groupId));
+        } catch {
+          setAlertMsg("Error deleting group.");
+        }
+      }
     });
   };
 
   const handleSaveGroupName = async (id) => {
     if (editGroupName.trim()) {
-      await updateDoc(doc(db, 'groups', id), { name: editGroupName.trim() });
+      try {
+        await updateDoc(doc(db, 'groups', id), { name: editGroupName.trim() });
+      } catch {
+        setAlertMsg("Error renaming group.");
+      }
     }
     setEditingGroupId(null);
   };
@@ -81,7 +95,7 @@ export default function GroupManager() {
   };
 
   const handleDragOver = (e, index) => {
-    e.preventDefault(); 
+    e.preventDefault();
     setDragOverIdx(index);
   };
 
@@ -102,20 +116,20 @@ export default function GroupManager() {
       await Promise.all(
         reorderedGroups.map((g, idx) => updateDoc(doc(db, 'groups', g.id), { order: idx }))
       );
-    } catch (err) {
+    } catch {
       setAlertMsg("Error saving new group order.");
     }
   };
 
   const handleSubDragStart = (e, id, type, idx) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     setDraggedSub({ id, type, idx });
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleSubDragOver = (e, id, type, idx) => {
     e.preventDefault();
-    e.stopPropagation(); 
+    e.stopPropagation();
     if (draggedSub && draggedSub.id === id && draggedSub.type === type) {
       setDragOverSub({ id, type, idx });
     }
@@ -124,7 +138,7 @@ export default function GroupManager() {
   const handleSubDrop = async (e, group, type, dropIdx) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!draggedSub || draggedSub.id !== group.id || draggedSub.type !== type) {
       setDragOverSub(null);
       setDraggedSub(null);
@@ -147,7 +161,7 @@ export default function GroupManager() {
 
     try {
       await updateDoc(doc(db, 'groups', group.id), { [type]: currentList });
-    } catch (err) {
+    } catch {
       setAlertMsg(`Error saving new ${type} order.`);
     }
   };
@@ -161,39 +175,52 @@ export default function GroupManager() {
   const handleAddMember = async (group) => {
     const name = (newMember[group.id] || '').trim();
     if (!name) return;
-    await updateDoc(doc(db, 'groups', group.id), { members: [...(group.members || []), name] });
-    setNewMember(prev => ({ ...prev, [group.id]: '' }));
+    try {
+      await updateDoc(doc(db, 'groups', group.id), { members: [...(group.members || []), name] });
+      setNewMember(prev => ({ ...prev, [group.id]: '' }));
+    } catch {
+      setAlertMsg("Error adding member.");
+    }
   };
 
   const handleRemoveMember = async (group, member) => {
-    await updateDoc(doc(db, 'groups', group.id), { members: group.members.filter(m => m !== member) });
+    try {
+      await updateDoc(doc(db, 'groups', group.id), { members: group.members.filter(m => m !== member) });
+    } catch {
+      setAlertMsg("Error removing member.");
+    }
   };
 
   const handleAddEra = async (group) => {
     const name = (newEra[group.id] || '').trim();
     if (!name) return;
-    await updateDoc(doc(db, 'groups', group.id), { eras: [...(group.eras || []), name] });
-    setNewEra(prev => ({ ...prev, [group.id]: '' }));
+    try {
+      await updateDoc(doc(db, 'groups', group.id), { eras: [...(group.eras || []), name] });
+      setNewEra(prev => ({ ...prev, [group.id]: '' }));
+    } catch {
+      setAlertMsg("Error adding era.");
+    }
   };
 
   const handleRemoveEra = async (group, era) => {
-    await updateDoc(doc(db, 'groups', group.id), { eras: group.eras.filter(e => e !== era) });
+    try {
+      await updateDoc(doc(db, 'groups', group.id), { eras: group.eras.filter(e => e !== era) });
+    } catch {
+      setAlertMsg("Error removing era.");
+    }
   };
 
   const toggleExpand = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem' }}>
-      
+
       <style>{`
-        /* Global Highlight Effect */
         .theme-input { transition: box-shadow 0.2s ease; outline: none; }
         .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
-
         .draggable-card { cursor: grab; }
         .draggable-card:active { cursor: grabbing; }
         .draggable-card:hover { box-shadow: 0 4px 12px rgba(49, 37, 39, 0.15) !important; }
-        
         .draggable-pill { cursor: grab; }
         .draggable-pill:active { cursor: grabbing; }
         .draggable-pill:hover { background-color: #D4C4C7 !important; }
@@ -218,13 +245,13 @@ export default function GroupManager() {
       </h2>
 
       <div style={{ marginBottom: '1.5rem', padding: '1.2rem', backgroundColor: '#D4C4C7', borderRadius: '10px' }}>
-        <input 
-          type="text" 
+        <input
+          type="text"
           className="theme-input"
-          placeholder="Search groups..." 
-          value={searchQuery} 
-          onChange={(e) => setSearchQuery(e.target.value)} 
-          style={{ width: '100%', padding: '0.8rem 1rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', color: '#312527', outline: 'none', boxSizing: 'border-box' }} 
+          placeholder="Search groups..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: '100%', padding: '0.8rem 1rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', color: '#312527', outline: 'none', boxSizing: 'border-box' }}
         />
       </div>
 
@@ -239,27 +266,26 @@ export default function GroupManager() {
       {filteredGroups.length === 0 && <p style={{ color: '#6A585B', fontSize: '0.9rem' }}>No groups found.</p>}
 
       {filteredGroups.map((group, index) => {
-        // We only allow drag-and-drop ordering if the user isn't currently filtering the list
         const canDrag = searchQuery.length === 0;
 
         return (
-          <div 
-            key={group.id} 
+          <div
+            key={group.id}
             className={canDrag ? "draggable-card" : ""}
             draggable={canDrag}
             onDragStart={(e) => canDrag && handleDragStart(e, index)}
             onDragOver={(e) => canDrag && handleDragOver(e, index)}
             onDrop={(e) => canDrag && handleDrop(e, index)}
             onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
-            style={{ 
-              ...sectionStyle, 
+            style={{
+              ...sectionStyle,
               opacity: draggedIdx === index ? 0.4 : 1,
               borderTop: dragOverIdx === index && draggedIdx !== index ? '3px solid #8D6E73' : '3px solid transparent',
-              marginTop: dragOverIdx === index ? '-3px' : '0' 
+              marginTop: dragOverIdx === index ? '-3px' : '0'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: expanded[group.id] ? '1.25rem' : 0 }}>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                 <div onClick={() => toggleExpand(group.id)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.8rem', flex: 1 }}>
                   {editingGroupId === group.id ? (
@@ -270,26 +296,12 @@ export default function GroupManager() {
                       onChange={(e) => setEditGroupName(e.target.value)}
                       onBlur={() => handleSaveGroupName(group.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleSaveGroupName(group.id); }}
-                      onClick={(e) => e.stopPropagation()} 
-                      style={{ 
-                        background: '#E6DADD', 
-                        border: 'none', 
-                        borderRadius: '4px',
-                        color: '#312527', 
-                        fontSize: '1.1rem', 
-                        fontWeight: '700', 
-                        padding: '0.2rem 0.5rem',
-                        outline: 'none',
-                        width: '200px'
-                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ background: '#E6DADD', border: 'none', borderRadius: '4px', color: '#312527', fontSize: '1.1rem', fontWeight: '700', padding: '0.2rem 0.5rem', outline: 'none', width: '200px' }}
                     />
                   ) : (
-                    <span 
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setEditingGroupId(group.id);
-                        setEditGroupName(group.name);
-                      }}
+                    <span
+                      onDoubleClick={(e) => { e.stopPropagation(); setEditingGroupId(group.id); setEditGroupName(group.name); }}
                       title="Double click to edit name"
                       style={{ fontSize: '1.2rem', fontWeight: '700', color: '#312527', userSelect: 'none' }}
                     >
@@ -306,22 +318,21 @@ export default function GroupManager() {
 
             {expanded[group.id] && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                
-                {/* DRAGGABLE MEMBERS */}
+
+                {/* MEMBERS */}
                 <div>
                   <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6A585B' }}>Members</p>
                   <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <input className="theme-input" style={{ ...inputStyle, fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} type="text" placeholder="Member name" value={newMember[group.id] || ''} onChange={e => setNewMember(prev => ({ ...prev, [group.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddMember(group)} />
                     <button onClick={() => handleAddMember(group)} style={{ padding: '0.5rem 1rem', backgroundColor: '#8D6E73', color: '#E6DADD', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>Add</button>
                   </div>
-                  
+
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     {(group.members || []).map((member, idx) => {
                       const isDragging = draggedSub?.id === group.id && draggedSub?.type === 'members' && draggedSub?.idx === idx;
                       const isOver = dragOverSub?.id === group.id && dragOverSub?.type === 'members' && dragOverSub?.idx === idx;
-                      
                       return (
-                        <span 
+                        <span
                           key={member}
                           className="draggable-pill"
                           draggable
@@ -329,39 +340,31 @@ export default function GroupManager() {
                           onDragOver={(e) => handleSubDragOver(e, group.id, 'members', idx)}
                           onDrop={(e) => handleSubDrop(e, group, 'members', idx)}
                           onDragEnd={handleSubDragEnd}
-                          style={{ 
-                            display: 'flex', alignItems: 'center', gap: '0.3rem', 
-                            backgroundColor: isOver ? '#C2B0B4' : '#E6DADD', 
-                            border: '1px solid transparent', borderRadius: '20px', 
-                            padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#312527',
-                            userSelect: 'none',
-                            opacity: isDragging ? 0.4 : 1, transition: 'background-color 0.2s'
-                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: isOver ? '#C2B0B4' : '#E6DADD', border: '1px solid transparent', borderRadius: '20px', padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#312527', userSelect: 'none', opacity: isDragging ? 0.4 : 1, transition: 'background-color 0.2s' }}
                         >
                           <span>{member}</span>
                           <button onClick={() => handleRemoveMember(group, member)} style={{ background: 'none', border: 'none', color: '#6A585B', cursor: 'pointer', fontSize: '0.75rem', padding: 0, lineHeight: 1, marginLeft: '0.25rem' }}>✕</button>
                         </span>
-                      )
+                      );
                     })}
                     {(group.members || []).length === 0 && <span style={{ color: '#6A585B', fontSize: '0.8rem' }}>No members yet</span>}
                   </div>
                 </div>
 
-                {/* DRAGGABLE ERAS */}
+                {/* ERAS */}
                 <div>
                   <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6A585B' }}>Eras</p>
                   <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <input className="theme-input" style={{ ...inputStyle, fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} type="text" placeholder="Era name" value={newEra[group.id] || ''} onChange={e => setNewEra(prev => ({ ...prev, [group.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddEra(group)} />
                     <button onClick={() => handleAddEra(group)} style={{ padding: '0.5rem 1rem', backgroundColor: '#8D6E73', color: '#E6DADD', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>Add</button>
                   </div>
-                  
+
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     {(group.eras || []).map((era, idx) => {
                       const isDragging = draggedSub?.id === group.id && draggedSub?.type === 'eras' && draggedSub?.idx === idx;
                       const isOver = dragOverSub?.id === group.id && dragOverSub?.type === 'eras' && dragOverSub?.idx === idx;
-                      
                       return (
-                        <span 
+                        <span
                           key={era}
                           className="draggable-pill"
                           draggable
@@ -369,19 +372,12 @@ export default function GroupManager() {
                           onDragOver={(e) => handleSubDragOver(e, group.id, 'eras', idx)}
                           onDrop={(e) => handleSubDrop(e, group, 'eras', idx)}
                           onDragEnd={handleSubDragEnd}
-                          style={{ 
-                            display: 'flex', alignItems: 'center', gap: '0.3rem', 
-                            backgroundColor: isOver ? '#C2B0B4' : '#E6DADD', 
-                            border: '1px solid transparent', borderRadius: '20px', 
-                            padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#312527',
-                            userSelect: 'none',
-                            opacity: isDragging ? 0.4 : 1, transition: 'background-color 0.2s'
-                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: isOver ? '#C2B0B4' : '#E6DADD', border: '1px solid transparent', borderRadius: '20px', padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#312527', userSelect: 'none', opacity: isDragging ? 0.4 : 1, transition: 'background-color 0.2s' }}
                         >
                           <span>{era}</span>
                           <button onClick={() => handleRemoveEra(group, era)} style={{ background: 'none', border: 'none', color: '#6A585B', cursor: 'pointer', fontSize: '0.75rem', padding: 0, lineHeight: 1, marginLeft: '0.25rem' }}>✕</button>
                         </span>
-                      )
+                      );
                     })}
                     {(group.eras || []).length === 0 && <span style={{ color: '#6A585B', fontSize: '0.8rem' }}>No eras yet</span>}
                   </div>
