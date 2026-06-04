@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, where, doc, getDoc, setDoc } from 'firebase/firestore';
+// Added documentId and getDocs to handle the targeted chunk fetching
+import { collection, onSnapshot, query, where, doc, getDoc, setDoc, documentId, getDocs } from 'firebase/firestore';
 
 const DEFAULT_AVATAR = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23C2B0B4'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-size='80' fill='%23312527' font-family='sans-serif'%3EKP%3C/text%3E%3C/svg%3E`;
 const DEFAULT_BANNER = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='250'%3E%3Crect width='1000' height='250' fill='%23D4C4C7'/%3E%3Ctext x='500' y='140' text-anchor='middle' font-size='40' fill='%236A585B' font-family='sans-serif'%3EYour Banner%3C/text%3E%3C/svg%3E`;
@@ -14,20 +15,17 @@ const DEFAULT_PROFILE = {
 
 export function useProfile(userId) {
   const [merch, setMerch] = useState([]);
+  const [globalMerch, setGlobalMerch] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState(DEFAULT_PROFILE);
   const [alertMsg, setAlertMsg] = useState(null);
 
-  // New independent state to hold the two data streams before merging
-  const [globalMerch, setGlobalMerch] = useState([]);
-  const [collectedLinks, setCollectedLinks] = useState([]);
-
-  // Data Fetching Effect
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
 
+    // 1. Fetch Profile Data
     const fetchProfile = async () => {
       const profileSnap = await getDoc(doc(db, 'profile', userId));
       if (profileSnap.exists()) {
@@ -38,47 +36,64 @@ export function useProfile(userId) {
     };
     fetchProfile();
 
-    const groupsQuery = query(collection(db, 'groups'));
-    const unsubGroups = onSnapshot(groupsQuery, (snapshot) => {
+    // 2. Fetch Groups
+    const unsubGroups = onSnapshot(query(collection(db, 'groups')), (snapshot) => {
       setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // 1. Fetch the entire Global Catalog
-    const globalMerchQuery = query(collection(db, 'merchandise'), orderBy('addedAt', 'desc'));
-    const unsubGlobalMerch = onSnapshot(globalMerchQuery, (snapshot) => {
-      setGlobalMerch(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    // 2. Fetch only THIS user's links from the collected_items bridge table
+    // 3. TARGETED FETCH: Get user's collected links first, then fetch ONLY those merch items
     const collectedQuery = query(collection(db, 'collected_items'), where('userId', '==', userId));
-    const unsubCollected = onSnapshot(collectedQuery, (snapshot) => {
-      setCollectedLinks(snapshot.docs.map(d => d.data()));
+    const unsubCollected = onSnapshot(collectedQuery, async (snapshot) => {
+      const links = snapshot.docs.map(d => d.data());
+      
+      if (links.length === 0) {
+        setMerch([]);
+        setGlobalMerch([]);
+        setLoading(false);
+        return;
+      }
+
+      // Extract unique merch IDs that this specific user owns
+      const merchIds = [...new Set(links.map(l => l.merchId))];
+
+      // Firestore 'in' queries have a strict limit of 30 items per batch, so we slice them up
+      const batches = [];
+      for (let i = 0; i < merchIds.length; i += 30) {
+        batches.push(merchIds.slice(i, i + 30));
+      }
+
+      try {
+        // Fetch the actual merchandise data in chunks of 30
+        const merchPromises = batches.map(batch => {
+          const q = query(collection(db, 'merchandise'), where(documentId(), 'in', batch));
+          return getDocs(q);
+        });
+
+        const snapshots = await Promise.all(merchPromises);
+        const fetchedMerch = [];
+        snapshots.forEach(snap => {
+          snap.docs.forEach(d => fetchedMerch.push({ id: d.id, ...d.data() }));
+        });
+
+        // Set globalMerch to ONLY what the user owns so ProfileBinders can still find its thumbnails!
+        setGlobalMerch(fetchedMerch);
+
+        // Merge the personal statuses (owned, wishlisted, etc.)
+        const mergedMerch = fetchedMerch.map(item => {
+          const link = links.find(l => l.merchId === item.id);
+          return { ...item, status: link.status };
+        });
+
+        setMerch(mergedMerch);
+      } catch (error) {
+        console.error("Error fetching user merch:", error);
+      } finally {
+        setLoading(false);
+      }
     });
 
-    return () => { unsubGroups(); unsubGlobalMerch(); unsubCollected(); };
+    return () => { unsubGroups(); unsubCollected(); };
   }, [userId]); 
-
-  // Data Merging Effect
-  useEffect(() => {
-    // Only attempt to merge if we have fetched the global pool
-    if (globalMerch.length > 0) {
-      const userSpecificMerch = collectedLinks.map(link => {
-        // Find the matching global item
-        const matchedItem = globalMerch.find(item => item.id === link.merchId);
-        if (matchedItem) {
-          // Return the global item, but inject the user's personal "owned/wishlisted" status
-          return { ...matchedItem, status: link.status };
-        }
-        return null;
-      }).filter(Boolean); // Filter out any nulls if a global item was deleted
-
-      setMerch(userSpecificMerch);
-      setLoading(false);
-    } else if (globalMerch.length === 0 && collectedLinks.length === 0) {
-      // Handle the case where the database is entirely empty
-      setLoading(false);
-    }
-  }, [globalMerch, collectedLinks]);
 
   const saveProfile = async (editForm) => {
     if (!userId) return false;

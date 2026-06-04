@@ -40,6 +40,7 @@ export default function MerchGallery({ user }) {
     merch, groups, loading, alertMsg, setAlertMsg,
     confirmDelete, setConfirmDelete,
     handleStatusChange, handleDelete, confirmDeleteItem,
+    hasMore, loadingMore, loadMore 
   } = useMerchGallery(user?.uid);
 
   const { profileData } = useUserProfile(user?.uid);
@@ -160,6 +161,27 @@ export default function MerchGallery({ user }) {
         onStatusChange={handleStatusChange}
         onDelete={handleDelete}
       />
+
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
+          <button 
+            onClick={loadMore} 
+            disabled={loadingMore}
+            style={{
+              padding: '0.75rem 2rem',
+              backgroundColor: loadingMore ? '#D4C4C7' : '#8D6E73',
+              color: '#FFF',
+              border: 'none',
+              borderRadius: '30px',
+              fontWeight: 'bold',
+              cursor: loadingMore ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            {loadingMore ? 'Loading...' : 'Load More'}
+          </button>
+        </div>
+      )}
 
       <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} user={user} userRole={profileData?.role} />
     </div>

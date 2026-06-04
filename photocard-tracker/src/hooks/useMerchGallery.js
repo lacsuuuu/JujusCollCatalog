@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-// Replaced updateDoc with setDoc and added where for querying
-import { collection, onSnapshot, query, orderBy, where, doc, setDoc, deleteDoc } from 'firebase/firestore';
+// ADDED: getDocs, limit, and startAfter
+import { collection, onSnapshot, query, orderBy, where, doc, setDoc, deleteDoc, getDocs, limit, startAfter } from 'firebase/firestore';
 
-// 1. Added userId as a parameter so the hook knows whose collection to manage
 export function useMerchGallery(userId) {
   const [merch, setMerch] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -11,22 +10,43 @@ export function useMerchGallery(userId) {
   const [alertMsg, setAlertMsg] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // Separate states for the global pool and the user's specific links
+  // Pagination States
   const [globalMerch, setGlobalMerch] = useState([]);
   const [collectedLinks, setCollectedLinks] = useState([]);
+  const [lastDoc, setLastDoc] = useState(null); 
+  const [hasMore, setHasMore] = useState(true); 
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  // 1. Initial Fetch (First 20 items)
   useEffect(() => {
     const unsubGroups = onSnapshot(collection(db, 'groups'), (snapshot) => {
       setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     
-    // Fetch the pure global catalog
-    const q = query(collection(db, 'merchandise'), orderBy('addedAt', 'desc'));
-    const unsubMerch = onSnapshot(q, (snapshot) => {
-      setGlobalMerch(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    // Fetch the first 20 items using getDocs instead of onSnapshot
+    const fetchInitialMerch = async () => {
+      setLoading(true);
+      try {
+        const q = query(collection(db, 'merchandise'), orderBy('addedAt', 'desc'), limit(20));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          setGlobalMerch(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+          // Save the very last document to use as our starting point for the next batch
+          setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+          setHasMore(snapshot.docs.length === 20); // If we got 20, there might be more
+        } else {
+          setHasMore(false);
+        }
+      } catch (error) {
+        console.error("Error fetching merch:", error);
+      }
+      setLoading(false);
+    };
 
-    // Fetch the user's personal collected links
+    fetchInitialMerch();
+
+    // Keep the user's personal collected links on a real-time listener (This is cheap and necessary for UI updates)
     let unsubCollected = () => {};
     if (userId) {
       const collectedQuery = query(collection(db, 'collected_items'), where('userId', '==', userId));
@@ -37,41 +57,63 @@ export function useMerchGallery(userId) {
        setCollectedLinks([]);
     }
 
-    return () => { unsubGroups(); unsubMerch(); unsubCollected(); };
+    return () => { unsubGroups(); unsubCollected(); };
   }, [userId]);
 
-  // 2. Merge effect: Combines global items with personal statuses
+  // 2. Load More Function (Next 20 items)
+  const loadMore = async () => {
+    if (!hasMore || loadingMore || !lastDoc) return;
+    setLoadingMore(true);
+
+    try {
+      const q = query(
+        collection(db, 'merchandise'), 
+        orderBy('addedAt', 'desc'), 
+        startAfter(lastDoc), // Start exactly where we left off
+        limit(20)
+      );
+      
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        // Append the new items to our existing array
+        setGlobalMerch(prev => [...prev, ...snapshot.docs.map(d => ({ id: d.id, ...d.data() }))]);
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMore(snapshot.docs.length === 20);
+      } else {
+        setHasMore(false); // No more items left in the database
+      }
+    } catch (error) {
+      console.error("Error loading more merch:", error);
+    }
+    
+    setLoadingMore(false);
+  };
+
+  // 3. Merge Effect (Unchanged)
   useEffect(() => {
     if (globalMerch.length > 0) {
       const mergedMerch = globalMerch.map(item => {
         const link = collectedLinks.find(c => c.merchId === item.id);
-        // If they have a link, use that status. Otherwise, default to 'unowned'
         return { ...item, status: link ? link.status : 'unowned' };
       });
       setMerch(mergedMerch);
-      setLoading(false);
     } else if (globalMerch.length === 0) {
       setMerch([]);
-      setLoading(false);
     }
   }, [globalMerch, collectedLinks]);
 
-  // 3. Updated Status Handler: Writes to the junction collection instead of the master doc
+  // 4. Status and Delete Handlers (Unchanged)
   const handleStatusChange = async (itemId, newStatus) => {
     if (!userId) {
       setAlertMsg("You must be logged in to update your collection.");
       return;
     }
-    
     try {
-      // Create a unique composite key to prevent duplicates
       const linkId = `${userId}_${itemId}`;
-      
       if (newStatus === 'unowned') {
-        // If they un-claim it, delete the link document to save space
         await deleteDoc(doc(db, 'collected_items', linkId));
       } else {
-        // Create or update the link document
         await setDoc(doc(db, 'collected_items', linkId), {
           userId: userId,
           merchId: itemId,
@@ -89,9 +131,9 @@ export function useMerchGallery(userId) {
 
   const confirmDeleteItem = async () => {
     try {
-      // Note: This still attempts to delete the GLOBAL item. 
-      // Your Firestore rules should restrict this so only the creator can successfully run this!
       await deleteDoc(doc(db, 'merchandise', confirmDelete));
+      // Optional: Manually filter the deleted item out of state so you don't have to refresh
+      setGlobalMerch(prev => prev.filter(item => item.id !== confirmDelete));
     } catch {
       setAlertMsg('Failed to delete global item. Check permissions.');
     } finally {
@@ -103,6 +145,9 @@ export function useMerchGallery(userId) {
     merch,
     groups,
     loading,
+    hasMore,
+    loadingMore,
+    loadMore,
     alertMsg,
     setAlertMsg,
     confirmDelete,
