@@ -5,7 +5,7 @@ import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { AuthProvider } from './context/AuthContext';
 import BinderPage from './components/merch/BinderPage';
-
+import { useUserProfile } from './hooks/useUserProfile'; // <-- IMPORT ADDED HERE
 
 const Profile = lazy(() => import('./components/user/Profile.jsx'));
 const AddMerch = lazy(() => import('./components/merch/AddMerch.jsx'));
@@ -21,8 +21,7 @@ const MemberPage = lazy(() => import('./components/groups/MemberPage.jsx'));
 const Binders = lazy(() => import('./components/merch/Binders.jsx'));
 const Collectors = lazy(() => import('./components/user/Collectors.jsx'));
 
-// Navigation bar 
-function NavigationTabs({ user }) {
+function NavigationTabs({ user, canEdit, profileData }) {
   const location = useLocation();
 
   const isTabActive = (path, isDynamic = false) => {
@@ -32,7 +31,6 @@ function NavigationTabs({ user }) {
     return location.pathname === path;
   };
 
-  // 2. Use it inside getTabStyle
   const getTabStyle = (path, isDynamic = false) => ({
     padding: '1rem 0',
     textDecoration: 'none',
@@ -46,21 +44,23 @@ function NavigationTabs({ user }) {
 
   return (
     <nav className="nav-container">
-      {/* Conditionally render Profile tab with dynamic ID if user is logged in */}
-      {user && ( 
-        <Link to={`/profile/${user.uid}`} style={getTabStyle('/profile', true)}> 
+      {user && profileData?.username && ( 
+        <Link to={`/profile/${profileData.username}`} style={getTabStyle('/profile', true)}> 
           Profile 
         </Link>
       )}
-            <Link to="/collectors" style={getTabStyle('/collectors')}>Community</Link>
+      <Link to="/collectors" style={getTabStyle('/collectors')}>Community</Link>
       <Link to="/gallery" style={getTabStyle('/gallery')}>Catalog</Link>
       <Link to="/binders" style={getTabStyle('/binders')}>Binders</Link>
       <Link to="/feed" style={getTabStyle('/feed')}>Feed</Link>
       <Link to="/groups" style={getTabStyle('/groups')}>Groups</Link>
       <Link to="/artists" style={getTabStyle('/artists')}>Idols</Link>
-      {user && <Link to="/manage" style={getTabStyle('/manage')}>Manage</Link>}
+      
+      {/* SECURITY FIX: Only render Manage tab if the user has edit permissions */}
+      {canEdit && <Link to="/manage" style={getTabStyle('/manage')}>Manage</Link>}
+      
       <Link className="admin-link" to="/admin" style={{ padding: '1rem 0', color: '#6A585B', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '700', flexShrink: 0, whiteSpace: 'nowrap' }}>
-        Admin
+        {user ? 'Logout' : 'Login'}
       </Link>
     </nav>
   );
@@ -76,6 +76,10 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // SECURITY LOGIC: Fetch the profile and check role
+  const { profileData } = useUserProfile(user?.uid);
+  const canEdit = profileData?.role === 'admin' || profileData?.role === 'collaborator';
 
   return (
     <AuthProvider>
@@ -175,18 +179,14 @@ function App() {
           <span style={{ fontSize: '1.2rem', fontWeight: '700', color: '#312527', letterSpacing: '0.04em' }}>Juju's Coll Catalog</span>
         </header>
 
-        <NavigationTabs user={user} />
+        <NavigationTabs user={user} canEdit={canEdit} profileData={profileData} />
 
         <div style={{ width: '100%' }}>
           <Suspense fallback={<div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>}>
           <Routes>
-
             <Route path="/" element={<Navigate to="/feed" replace />} />
-            
-            <Route path="/profile/:userId" element={<Profile user={user} />} />
-
+            <Route path="/profile/:username" element={<Profile user={user} />} />
             <Route path="/collectors" element={<Collectors />} />
-            
             <Route path="/gallery" element={
               <div>
                 {user && <AddMerch />}
@@ -203,14 +203,18 @@ function App() {
             } />
             <Route path="/groups" element={<GroupDirectory />} />
             <Route path="/groups/:groupId" element={<GroupPage />} />
-            <Route path="/manage" element={user ? <GroupManager /> : <Login user={user} />} />
             <Route path="/artists" element={<ArtistDirectory user={user} />} />
-            <Route path="/admin" element={<Login user={user} />} />
             <Route path="/artist/:groupId/:memberName" element={<MemberPage />} />
+            
+            {/* SECURITY FIX: Route protection for /manage */}
+            <Route path="/manage" element={
+              canEdit ? <GroupManager /> : (user ? <Navigate to="/groups" replace /> : <Login user={user} />)
+            } />
+            
+            <Route path="/admin" element={<Login user={user} />} />
           </Routes>
           </Suspense>
         </div>
-
       </main>
     </Router>
     </AuthProvider>

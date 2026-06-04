@@ -5,11 +5,14 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs, limit, start
 import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
 import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
+import { useUserProfile } from '../../hooks/useUserProfile';
 
 export default function GroupPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
   const { currentUser: user } = useAuth();
+  const { profileData } = useUserProfile(user?.uid);
+  const canEdit = profileData?.role === 'admin' || profileData?.role === 'collaborator';
 
   const [data, setData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -265,10 +268,10 @@ export default function GroupPage() {
               </div>
             )}
 
-            {user && !isEditing && (
+            {canEdit && !isEditing && (
               <button
                 className="edit-btn-mobile"
-                onClick={() => setIsEditing(true)}
+                onClick={() => { setIsEditing(true); setEditForm(data); }}
                 style={{ display: 'none', position: 'absolute', right: '1rem', top: '1rem', padding: '0.5rem 1.2rem', backgroundColor: 'rgba(230,218,221,0.85)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: '6px', color: '#312527', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', zIndex: 30, alignItems: 'center' }}
               >
                 Edit Profile
@@ -415,10 +418,10 @@ export default function GroupPage() {
                   <div style={{ flex: 1, width: '100%' }}>
                     <div className="hero-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h2 style={{ margin: 0, color: '#312527', fontSize: '2.5rem' }}>{data.name}</h2>
-                      {user && (
-                        <button
-                          className="edit-btn-desktop"
-                          onClick={() => setIsEditing(true)}
+                      {canEdit && !isEditing && (
+                      <button
+                        className="edit-btn-desktop"
+                        onClick={() => { setIsEditing(true); setEditForm(data); }}
                           style={{ padding: '0.5rem 1.2rem', backgroundColor: 'transparent', border: '2px solid #C2B0B4', borderRadius: '6px', color: '#6A585B', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
                         >
                           Edit Profile

@@ -10,9 +10,7 @@ export default function ProfileHeader({
   setEditForm,
   isEditing,
   setIsEditing,
-  defaultAvatar,
-  defaultBanner,
-  isOwnProfile, // Added isOwnProfile prop
+  isOwnProfile, 
 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -62,7 +60,13 @@ export default function ProfileHeader({
     }
   };
 
-  const handleImageError = (e, fallback) => { e.target.src = fallback; };
+  const handleImageError = (e, fallback) => { 
+    if (fallback) {
+      e.target.src = fallback; 
+    } else {
+      e.target.style.display = 'none';
+    }
+  };
 
   const overlayStyle = {
     position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
@@ -107,29 +111,20 @@ export default function ProfileHeader({
       {/* Banner */}
       <div className="profile-banner-container" style={{ position: 'relative', marginBottom: '4rem', height: '250px', backgroundColor: '#D4C4C7', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden', borderRadius: '12px', backgroundColor: '#C2B0B4' }}>
-          <img
-            key={activeData.bannerUrl}
-            src={activeData.bannerUrl}
-            alt="Banner"
-            onError={(e) => handleImageError(e, defaultBanner)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-          {/* SECURITY FIX: Added isOwnProfile to ensure only the owner can change the banner */}
-          {isEditing && isOwnProfile && (
-            <div
-              style={{ ...overlayStyle, gap: '8px' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = 0}
-              onClick={() => handleImageClick('banner')}
-            >
-              <img src="/cam.svg" alt="cam" width="20" height="20" /><span>Change Banner</span>
-            </div>
+          {activeData.bannerUrl && (
+            <img
+              key={activeData.bannerUrl}
+              src={activeData.bannerUrl}
+              alt="Banner"
+              onError={(e) => handleImageError(e)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
           )}
-
-          {isEditing && editForm.bannerUrl && editForm.bannerUrl !== defaultBanner && (
+          {/* ... camera icon overlay stays here ... */}
+          {isEditing && editForm.bannerUrl && (
             <button
               className="del-btn"
-              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, bannerUrl: defaultBanner })); }}
+              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, bannerUrl: "" })); }}
               style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: 'rgba(49,37,39,0.65)', backdropFilter: 'blur(4px)', color: 'white', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
               title="Remove Banner"
             >
@@ -153,27 +148,27 @@ export default function ProfileHeader({
           <div className="profile-avatar-container" style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #E6DADD', backgroundColor: '#E6DADD', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
             <img
               key={activeData.avatarUrl}
-              src={activeData.avatarUrl}
+              src={activeData.avatarUrl || '/bunny.png'}
               alt="Avatar"
-              onError={(e) => handleImageError(e, defaultAvatar)}
+              onError={(e) => handleImageError(e, '/bunny.png')}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-            {/* SECURITY FIX: Added isOwnProfile to ensure only the owner can change the avatar */}
-            {isEditing && isOwnProfile && (
-              <div
-                style={{ ...overlayStyle, fontSize: '0.8rem', textAlign: 'center', flexDirection: 'column', gap: '0px' }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = 0}
-                onClick={() => handleImageClick('avatar')}
-              >
-                <img src="cam.svg" alt="cam" width="20" height="20" /><span>Change Icon</span>
-              </div>
-            )}
-          </div>
-          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== defaultAvatar && (
+          {/* ... camera icon overlay stays here ... */}
+          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
             <button
               className="del-btn"
-              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: defaultAvatar })); }}
+              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
+              style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
+              title="Remove Avatar"
+            >
+                <img src="cam.svg" alt="cam" width="20" height="20" /><span>Change Icon</span>
+                </button>
+            )}
+          </div>
+          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
+            <button
+              className="del-btn"
+              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
               style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
               title="Remove Avatar"
             >

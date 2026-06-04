@@ -6,18 +6,20 @@ import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
 import ItemDetailModal from '../ui/ItemDetailModal';
 import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
+import { useUserProfile } from '../../hooks/useUserProfile';
 
 export default function MemberPage() {
   const { groupId, memberName } = useParams();
   const navigate = useNavigate();
   const { currentUser: user } = useAuth();
+  const { profileData } = useUserProfile(user?.uid);
+  const canEdit = profileData?.role === 'admin' || profileData?.role === 'collaborator';
 
   const [data, setData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   
-  // Pagination State
   const [photocards, setPhotocards] = useState([]);
   const [lastVisible, setLastVisible] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -296,7 +298,7 @@ export default function MemberPage() {
               </div>
             )}
 
-            {user && !isEditing && (
+            {canEdit && !isEditing && (
               <button
                 className="edit-btn-mobile"
                 onClick={() => { setIsEditing(true); setEditForm(data); }}
@@ -427,7 +429,7 @@ export default function MemberPage() {
                     </div>
                   </div>
 
-                  {user && !isEditing && (
+                  {canEdit && !isEditing && (
                     <button
                       className="edit-btn-desktop"
                       onClick={() => { setIsEditing(true); setEditForm(data); }}

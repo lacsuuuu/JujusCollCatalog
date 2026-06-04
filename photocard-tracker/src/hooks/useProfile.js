@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-// Added documentId and getDocs to handle the targeted chunk fetching
-import { collection, onSnapshot, query, where, doc, getDoc, setDoc, documentId, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, getDoc, setDoc, documentId, getDocs, writeBatch } from 'firebase/firestore';
 
-const DEFAULT_AVATAR = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23C2B0B4'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-size='80' fill='%23312527' font-family='sans-serif'%3EKP%3C/text%3E%3C/svg%3E`;
-const DEFAULT_BANNER = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='250'%3E%3Crect width='1000' height='250' fill='%23D4C4C7'/%3E%3Ctext x='500' y='140' text-anchor='middle' font-size='40' fill='%236A585B' font-family='sans-serif'%3EYour Banner%3C/text%3E%3C/svg%3E`;
+const DEFAULT_AVATAR = '/bunny.png';
+const DEFAULT_BANNER = '';
 
 const DEFAULT_PROFILE = {
-  name: "My K-Pop Collection",
-  bio: "Collecting NewJeans, Stray Kids, and everything in between. 🌸",
+  displayName: "Juju's Coll Catalog",
+  username: "juju",
+  bio: "No Bio",
   avatarUrl: DEFAULT_AVATAR,
   bannerUrl: DEFAULT_BANNER,
 };
@@ -104,12 +104,47 @@ export function useProfile(userId) {
   const saveProfile = async (editForm) => {
     if (!userId) return false;
     try {
-      await setDoc(doc(db, 'profile', userId), editForm, { merge: true });
+      // Check if the user is trying to change their username
+      if (editForm.username && editForm.username !== profileData.username) {
+        const newUsername = editForm.username.toLowerCase();
+        const oldUsername = profileData.username?.toLowerCase();
+
+        // 1. Check if the new username is already taken by someone else
+        const usernameSnap = await getDoc(doc(db, 'usernames', newUsername));
+        if (usernameSnap.exists()) {
+          setAlertMsg('That username is already taken!');
+          return false; // Stop the save
+        }
+
+        // 2. Use a batch to safely perform all database actions at once
+        const batch = writeBatch(db);
+
+        // Create the new username document, carrying over their original email
+        batch.set(doc(db, 'usernames', newUsername), {
+          uid: userId,
+          email: profileData.email || '' 
+        });
+
+        // Delete the old username document to free it up for others
+        if (oldUsername) {
+          batch.delete(doc(db, 'usernames', oldUsername));
+        }
+
+        // Update their main profile data
+        batch.set(doc(db, 'profile', userId), editForm, { merge: true });
+
+        await batch.commit();
+      } else {
+        // If they didn't change their username, just do a normal, simple save
+        await setDoc(doc(db, 'profile', userId), editForm, { merge: true });
+      }
+
       setProfileData(editForm);
       setAlertMsg('Profile updated successfully!');
       return true;
-    } catch {
-      setAlertMsg('Database Error.');
+    } catch (error) {
+      console.error(error);
+      setAlertMsg('Database Error: ' + error.message);
       return false;
     }
   };
@@ -123,7 +158,5 @@ export function useProfile(userId) {
     alertMsg,
     setAlertMsg,
     saveProfile,
-    defaultAvatar: DEFAULT_AVATAR,
-    defaultBanner: DEFAULT_BANNER,
   };
 }

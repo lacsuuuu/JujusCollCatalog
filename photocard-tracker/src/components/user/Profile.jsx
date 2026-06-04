@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import ProfileHeader from './ProfileHeader';
 import ProfileFilters from './ProfileFilters';
@@ -9,6 +9,9 @@ import ItemDetailModal from '../ui/ItemDetailModal';
 import ThemeAlert from '../ui/ThemeAlert';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import UserSearch from '../ui/UserSearch';
+import { auth, db } from '../../firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 const PROFILE_STYLES = `
   .merch-card { transition: transform 0.2s ease, box-shadow 0.2s ease !important; }
@@ -44,15 +47,36 @@ const PROFILE_STYLES = `
 `;
 
 export default function Profile({ user }) {
-  const { userId } = useParams();
-  const isOwnProfile = user?.uid === userId;
+  const { username } = useParams(); // Now grabbing username from the URL
+  const navigate = useNavigate();
 
+  const [targetUserId, setTargetUserId] = useState(null);
+
+  useEffect(() => {
+    const resolveUsername = async () => {
+      if (!username) return;
+      try {
+        const snap = await getDoc(doc(db, 'usernames', username.toLowerCase()));
+        if (snap.exists()) {
+          setTargetUserId(snap.data().uid);
+        } else {
+          setTargetUserId('not-found');
+        }
+      } catch (error) {
+        console.error("Error resolving username:", error);
+        setTargetUserId('not-found');
+      }
+    };
+    resolveUsername();
+  }, [username]);
+
+  const isOwnProfile = user?.uid === targetUserId;
   const { profileData: viewerProfile } = useUserProfile(user?.uid || 'guest');
 
   const {
     merch, globalMerch, groups, loading, profileData, alertMsg, setAlertMsg,
-    saveProfile, defaultAvatar, defaultBanner,
-  } = useProfile(userId);
+    saveProfile
+  } = useProfile(targetUserId === 'not-found' ? null : targetUserId);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [hoveredButton, setHoveredButton] = useState(null);
@@ -127,13 +151,32 @@ export default function Profile({ user }) {
 
   const ownedCollection = filteredMerch.filter(i => i.status === 'owned' || i.status === 'on the way');
   const wishlistCollection = filteredMerch.filter(i => i.status === 'wishlisted');
-
+ 
+  const handlePasswordReset = async () => {
+    // We get the email directly from the authenticated user object
+    if (!user?.email) return setAlertMsg("No email found for this user.");
+    
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      setAlertMsg('Password reset link sent! Check your inbox.');
+    } catch (error) {
+      setAlertMsg('Error: ' + error.message);
+    }
+  };
   const handleSaveProfile = async () => {
+    const oldUsername = profileData.username;
     const ok = await saveProfile(editForm);
-    if (ok) setIsEditing(false);
+    if (ok) {
+      setIsEditing(false);
+      // Redirect to the new URL if they changed their username!
+      if (editForm.username && editForm.username !== oldUsername) {
+        navigate(`/profile/${editForm.username}`);
+      }
+    }
   };
 
-  if (loading) return <p style={{ textAlign: 'center', color: '#6A585B' }}>Loading profile...</p>;
+  if (targetUserId === 'not-found') return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>User not found.</div>;
+  if (!targetUserId || loading) return <p style={{ textAlign: 'center', color: '#6A585B' }}>Loading profile...</p>;
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem', textAlign: 'left' }}>
@@ -148,8 +191,6 @@ export default function Profile({ user }) {
         setEditForm={setEditForm}
         isEditing={isEditing}
         setIsEditing={setIsEditing}
-        defaultAvatar={defaultAvatar}
-        defaultBanner={defaultBanner}
         isOwnProfile={isOwnProfile}
       />
 
@@ -158,8 +199,43 @@ export default function Profile({ user }) {
         {isEditing && isOwnProfile ? (
           <div className="edit-profile-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '500px' }}>
             <p style={{ color: '#6A585B', margin: 0, fontSize: '0.9rem' }}><em>Click your avatar or banner above to upload an image.</em></p>
-            <input type="text" placeholder="Display Name" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} style={{ padding: '0.5rem 0.75rem', backgroundColor: '#C2B0B4', color: '#312527', border: 'none', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-            <input type="text" placeholder="Bio" value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} style={{ padding: '0.5rem 0.75rem', backgroundColor: '#C2B0B4', color: '#312527', border: 'none', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+            
+            <input 
+              type="text" 
+              placeholder="Display Name" 
+              value={editForm.displayName || ''} 
+              onChange={e => setEditForm({ ...editForm, displayName: e.target.value })} 
+              style={{ padding: '0.5rem 0.75rem', backgroundColor: '#C2B0B4', color: '#312527', border: 'none', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' }} 
+            />
+            
+            <input 
+              type="text" 
+              placeholder="@username" 
+              value={editForm.username || ''} 
+              onChange={e => setEditForm({ ...editForm, username: e.target.value })} 
+              style={{ padding: '0.5rem 0.75rem', backgroundColor: '#C2B0B4', color: '#312527', border: 'none', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' }} 
+            />
+            
+            <textarea 
+              placeholder="Bio" 
+              value={editForm.bio || ''} 
+              onChange={e => setEditForm({ ...editForm, bio: e.target.value })} 
+              rows="3"
+              style={{ padding: '0.5rem 0.75rem', backgroundColor: '#C2B0B4', color: '#312527', border: 'none', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} 
+            />
+
+            <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+              <button 
+                type="button"
+                onClick={handlePasswordReset} 
+                style={{ padding: '0.5rem 1rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', width: '100%', transition: 'background-color 0.2s', fontWeight: '500' }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(141, 110, 115, 0.1)'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+              >
+                Send Password Reset Email
+              </button>
+            </div>
+            
             <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
               <button onClick={handleSaveProfile} onMouseEnter={() => setHoveredButton('save')} onMouseLeave={() => setHoveredButton(null)} style={{ padding: '0.5rem 1.5rem', backgroundColor: hoveredButton === 'save' ? '#6B5458' : '#8D6E73', color: '#FFFFFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', transition: 'background-color 0.2s', flex: 1 }}>Save</button>
               <button onClick={() => { setIsEditing(false); setEditForm(profileData); }} onMouseEnter={() => setHoveredButton('cancel')} onMouseLeave={() => setHoveredButton(null)} style={{ padding: '0.5rem 1.5rem', backgroundColor: hoveredButton === 'cancel' ? '#D4C4C7' : 'transparent', color: '#6A585B', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', transition: 'background-color 0.2s', flex: 1 }}>Cancel</button>
@@ -167,14 +243,21 @@ export default function Profile({ user }) {
           </div>
         ) : (
           <>
-            <h1 className="profile-title" style={{ margin: '0 0 0.4rem 0', color: '#312527', fontSize: '1.5rem', fontWeight: '700' }}>{profileData.name}</h1>
-            <p style={{ margin: '0', color: '#6A585B', fontSize: '0.95rem' }}>{profileData.bio}</p>
+            <h1 className="profile-title" style={{ margin: '0 0 0.2rem 0', color: '#312527', fontSize: '1.5rem', fontWeight: '700' }}>
+              {profileData?.displayName || 'Unknown User'}
+            </h1>
+            <p style={{ margin: '0 0 0.5rem 0', color: '#8D6E73', fontSize: '0.95rem', fontWeight: '500' }}>
+              @{profileData?.username || 'username'}
+            </p>
+            <p style={{ margin: '0', color: '#6A585B', fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>
+              {profileData?.bio || 'No bio provided.'}
+            </p>
           </>
         )}
       </div>
 
       {/* Public binders section — shows above the merch collection */}
-      <ProfileBinders userId={userId} globalMerch={globalMerch} />
+      <ProfileBinders userId={targetUserId} globalMerch={globalMerch} />
 
       <ProfileFilters
         filterGroup={filterGroup}

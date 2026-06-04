@@ -73,7 +73,7 @@ export default function Collectors() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem' }}>
         {collectors.map(c => (
-          <Link key={c.id} to={`/profile/${c.id}`} style={{ textDecoration: 'none' }}>
+          <Link key={c.id} to={`/profile/${c.username}`} style={{ textDecoration: 'none' }}>
             <div style={{
               backgroundColor: '#D4C4C7',
               padding: '1.5rem',
@@ -99,10 +99,12 @@ export default function Collectors() {
                 alt={c.name}
                 style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '1rem', border: '3px solid #E6DADD' }}
               />
-              <h3 style={{ margin: '0 0 0.5rem 0', color: '#312527', fontSize: '1.1rem', fontWeight: '700' }}>{c.name || 'Collector'}</h3>
-              <p style={{ margin: 0, color: '#6A585B', fontSize: '0.85rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {c.bio || 'Collecting K-Pop!'}
-              </p>
+              <h3 style={{ margin: '0 0 0.25rem 0', color: '#312527', fontSize: '1rem', fontWeight: '700' }}>{c.name || c.username || 'Collector'}</h3>
+              {c.username && (
+                <p style={{ margin: 0, color: '#8D6E73', fontSize: '0.82rem', fontWeight: '500' }}>
+                  @{c.username}
+                </p>
+              )}
             </div>
           </Link>
         ))}
