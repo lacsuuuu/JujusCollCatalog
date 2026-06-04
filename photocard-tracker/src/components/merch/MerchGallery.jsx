@@ -152,6 +152,7 @@ export default function MerchGallery({ user }) {
       <GalleryMerchGrid
         items={filteredMerch}
         user={user}
+        userRole={profileData?.role}
         groupBy={groupBy}
         setGroupBy={setGroupBy}
         currentGroup={currentGroup}

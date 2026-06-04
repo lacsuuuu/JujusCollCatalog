@@ -353,7 +353,7 @@ export default function Feed({ user }) {
       )}
 
       <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527', paddingBottom: '0.5rem', borderBottom: '1px solid #C2B0B4' }}>
-        Collection Diary
+        Community Feed
       </h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
