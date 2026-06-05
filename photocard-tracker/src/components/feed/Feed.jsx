@@ -113,7 +113,7 @@ export default function Feed({ user }) {
       if (postToDelete) {
         const urls = postToDelete.imageUrls || (postToDelete.imageUrl ? [postToDelete.imageUrl] : []);
         for (const url of urls) {
-          if (url.includes('cloudinary.com')) await deleteCloudinaryImage(url);
+          if (url.includes('ik.imagekit.io') || url.includes('cloudinary.com')) await deleteImageKitImage(url);
         }
       }
       await deleteDoc(doc(db, "posts", confirmDeleteId));
@@ -350,11 +350,19 @@ export default function Feed({ user }) {
             <div key={post.id} style={{ borderRadius: '12px', overflow: 'hidden', backgroundColor: '#D4C4C7', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#8D6E73', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', paddingTop: '0.4rem' }}>
-                    {formatPostDate(post.timestamp)}
-                  </p>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {post.displayName && (
+                        <span style={{ fontSize: '0.95rem', color: '#312527', fontWeight: '700' }}>{post.displayName}</span>
+                      )}
+                      {post.username && (
+                        <span style={{ fontSize: '0.82rem', color: '#8D6E73', fontWeight: '500' }}>@{post.username}</span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.78rem', color: '#A08D90' }}>{formatPostDate(post.timestamp)}</span>
+                  </div>
 
-                  {user && (
+                  {user && post.userId === user.uid && (
                     <div style={{ position: 'relative', zIndex: 95 }}>
                       <button
                         onClick={() => setActiveMenuId(activeMenuId === post.id ? null : post.id)}
@@ -379,8 +387,7 @@ export default function Feed({ user }) {
                   )}
                 </div>
 
-                <p style={{
-                  margin: 0, fontSize: '0.95rem', lineHeight: '1.5', color: '#312527', whiteSpace: 'pre-wrap',
+                <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.95rem', lineHeight: '1.5', color: '#312527', whiteSpace: 'pre-wrap',
                   display: isExpanded ? 'block' : '-webkit-box',
                   WebkitLineClamp: isExpanded ? 'unset' : 3,
                   WebkitBoxOrient: 'vertical',
@@ -403,6 +410,8 @@ export default function Feed({ user }) {
                 <img
                   src={optimizeUrl(urls[idx], 600)}
                   alt="Feed post"
+                  loading="lazy"
+                  decoding="async"
                   onClick={() => setViewingImage(post)}
                   style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block', borderRadius: '6px', cursor: 'zoom-in', backgroundColor: '#C2B0B4' }}
                 />

@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { doc, updateDoc, setDoc, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
-import imageCompression from 'browser-image-compression';
-import { deleteCloudinaryImage } from '../../utils/cloudinaryUtils';
+import { deleteImageKitImage, compressAndUpload } from '../../utils/imageKitUtils';
 import CustomSelect from '../ui/CustomSelect';
 
 
@@ -117,23 +116,9 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
     });
   };
 
-  const uploadImage = async (file) => {
-    const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
-    const compressed = await imageCompression(file, options);
-    const formData = new FormData();
-    formData.append('file', compressed);
-    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-    formData.append('upload_preset', uploadPreset);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error("Upload failed");
-    return data.secure_url;
-  };
-
   const handleRemoveImage = async (fieldToClear, currentUrl) => {
-    if (currentUrl && currentUrl.includes('cloudinary.com')) {
-      await deleteCloudinaryImage(currentUrl);
+    if (currentUrl && (currentUrl.includes('ik.imagekit.io') || currentUrl.includes('cloudinary.com'))) {
+      await deleteImageKitImage(currentUrl);
     }
     setEditedItem(prev => ({ ...prev, [fieldToClear]: '' }));
     if (fieldToClear === 'imageUrl') setFrontFile(null);
@@ -147,8 +132,9 @@ export default function ItemDetailModal({ item, onClose, user, userRole }) {
       const { status, isFavorite, ...globalItemData } = editedItem;
 
       let updatedData = { ...globalItemData };
-      if (frontFile) updatedData.imageUrl = await uploadImage(frontFile);
-      if (backFile) updatedData.backImageUrl = await uploadImage(backFile);
+      
+      if (frontFile) updatedData.imageUrl = await compressAndUpload(frontFile);
+      if (backFile) updatedData.backImageUrl = await compressAndUpload(backFile);
 
       try {
         await updateDoc(doc(db, "merchandise", item.id), updatedData);

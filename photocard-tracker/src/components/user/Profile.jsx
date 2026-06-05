@@ -182,7 +182,9 @@ export default function Profile({ user }) {
     <div style={{ width: '100%', paddingBottom: '3rem', textAlign: 'left' }}>
       <style>{PROFILE_STYLES}</style>
 
-      <UserSearch />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+        <UserSearch />
+      </div>
 
       <ProfileHeader
         user={user}

@@ -6,7 +6,7 @@ import { deleteField } from 'firebase/firestore';
 import { useMerch } from '../../hooks/useMerch';
 import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
 import { updateDoc } from 'firebase/firestore';
-import { optimizeUrl } from '../../utils/cloudinaryUtils';
+import { optimizeUrl } from '../../utils/imageKitUtils';
 import ThemeAlert from '../ui/ThemeAlert';
 
 const PAGE_STYLES = `

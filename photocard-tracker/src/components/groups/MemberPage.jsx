@@ -160,7 +160,7 @@ export default function MemberPage() {
     if (updatedPhotos.length === 0) return;
     const removedPhoto = updatedPhotos.splice(currentPhotoIndex, 1)[0];
 
-    if (removedPhoto?.url?.includes('cloudinary.com')) {
+    if (removedPhoto?.url?.includes('ik.imagekit.io') || removedPhoto?.url?.includes('cloudinary.com')) {
       await deleteCloudinaryImage(removedPhoto.url);
     }
 
@@ -351,7 +351,7 @@ export default function MemberPage() {
                     </div>
                     {editForm.profileImageUrl && (
                       <button type="button" onClick={async () => {
-                        if (editForm.profileImageUrl?.includes('cloudinary.com')) {
+                        if (editForm.profileImageUrl?.includes('ik.imagekit.io') || editForm.profileImageUrl?.includes('cloudinary.com')) {
                           await deleteCloudinaryImage(editForm.profileImageUrl);
                         }
                         setEditForm(prev => ({ ...prev, profileImageUrl: '', profileImageFile: null }));

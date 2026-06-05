@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { optimizeUrl } from '../../utils/cloudinaryUtils';
+import { optimizeUrl } from '../../utils/imageKitUtils';
 
 export default function GroupDirectory() {
   const [groups, setGroups] = useState([]);

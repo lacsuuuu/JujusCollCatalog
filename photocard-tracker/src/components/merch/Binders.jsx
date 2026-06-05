@@ -5,7 +5,7 @@ import { useBinders } from '../../hooks/useBinders';
 import { useMerch } from '../../hooks/useMerch';
 import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
 import ThemeAlert from '../ui/ThemeAlert';
-import { optimizeUrl } from '../../utils/cloudinaryUtils';
+import { optimizeUrl } from '../../utils/imageKitUtils';
 
 const BINDER_STYLES = `
   .theme-input { transition: box-shadow 0.2s ease; outline: none; }

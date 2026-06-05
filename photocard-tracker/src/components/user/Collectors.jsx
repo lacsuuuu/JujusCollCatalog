@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, getDocs, query, limit, startAfter } from 'firebase/firestore';
 import UserSearch from '../ui/UserSearch';
-import { optimizeUrl } from '../../utils/cloudinaryUtils';
+import { optimizeUrl } from '../../utils/imageKitUtils';
 
 export default function Collectors() {
   const [collectors, setCollectors] = useState([]);
@@ -67,7 +67,7 @@ export default function Collectors() {
       <h1 style={{ color: '#312527', margin: '0 0 1.5rem 0', fontSize: '1.8rem', fontWeight: '700' }}>Community</h1>
 
       {/* Reuse your search bar here so guests can search too! */}
-      <div style={{ marginBottom: '3rem' }}>
+      <div style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'flex-end' }}>
         <UserSearch />
       </div>
 
@@ -97,6 +97,8 @@ export default function Collectors() {
               <img
                 src={optimizeUrl(c.avatarUrl || '/bunny.png')}
                 alt={c.name}
+                loading="lazy"
+                decoding="async"
                 style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '1rem', border: '3px solid #E6DADD' }}
               />
               <h3 style={{ margin: '0 0 0.25rem 0', color: '#312527', fontSize: '1rem', fontWeight: '700' }}>{c.name || c.username || 'Collector'}</h3>

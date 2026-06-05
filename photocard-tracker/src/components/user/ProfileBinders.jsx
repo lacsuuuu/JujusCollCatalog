@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { optimizeUrl } from '../../utils/cloudinaryUtils';
+import { optimizeUrl } from '../../utils/imageKitUtils';
 
 export default function ProfileBinders({ userId, globalMerch }) {
   const navigate = useNavigate();

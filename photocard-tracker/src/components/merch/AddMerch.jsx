@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import imageCompression from 'browser-image-compression';
 import ThemeAlert from '../ui/ThemeAlert';
+import { compressAndUpload } from '../../utils/imageKitUtils';
 
 const CustomSelect = ({ value, onChange, options, placeholder, disabled, required, style, showArrow = false }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -202,28 +202,11 @@ export default function AddMerch() {
     setLoading(true);
 
     try {
-      const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-      
-      const compressedFile = await imageCompression(file, options);
-      const formData = new FormData();
-      formData.append('file', compressedFile);
-      formData.append('upload_preset', uploadPreset);
-      const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
-      const cloudData = await cloudRes.json();
-      if (!cloudRes.ok) throw new Error(cloudData.error.message || "Front image upload failed");
+      const frontImageUrl = await compressAndUpload(file);
 
       let backImageUrl = null;
       if (category === 'Photocard' && backFile) {
-        const compressedBackFile = await imageCompression(backFile, options);
-        const backFormData = new FormData();
-        backFormData.append('file', compressedBackFile);
-        backFormData.append('upload_preset', uploadPreset);
-        const backCloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: backFormData });
-        const backCloudData = await backCloudRes.json();
-        if (!backCloudRes.ok) throw new Error(backCloudData.error.message || "Back image upload failed");
-        backImageUrl = backCloudData.secure_url;
+        backImageUrl = await compressAndUpload(backFile);
       }
 
       let finalMemberName = '';
@@ -239,7 +222,7 @@ export default function AddMerch() {
         groupName: selectedGroup, 
         memberName: finalMemberName,
         era: selectedEra,
-        imageUrl: cloudData.secure_url,
+        imageUrl: frontImageUrl,
         status: "unowned",
         addedAt: new Date(),
         userId: user.uid 

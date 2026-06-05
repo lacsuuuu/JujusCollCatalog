@@ -147,7 +147,7 @@ export default function GroupPage() {
     if (updatedPhotos.length === 0) return;
     const removedPhoto = updatedPhotos.splice(currentPhotoIndex, 1)[0];
 
-    if (removedPhoto?.url?.includes('cloudinary.com')) {
+    if (removedPhoto?.url?.includes('ik.imagekit.io') || removedPhoto?.url?.includes('cloudinary.com')) {
       await deleteCloudinaryImage(removedPhoto.url);
     }
 
@@ -346,9 +346,9 @@ export default function GroupPage() {
                     </div>
                     {editForm.groupImageUrl && (
                       <button onClick={async () => {
-                        if (editForm.groupImageUrl?.includes('cloudinary.com')) {
-                          await deleteCloudinaryImage(editForm.groupImageUrl);
-                        }
+                        if (editForm.groupImageUrl?.includes('ik.imagekit.io') || editForm.groupImageUrl?.includes('cloudinary.com')) {
+                              await deleteCloudinaryImage(editForm.groupImageUrl);
+                            }
                         setEditForm(p => ({ ...p, groupImageUrl: '', groupImageFile: null }));
                       }}
                         className="del-btn"

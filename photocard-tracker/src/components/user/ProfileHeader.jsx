@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../../utils/imageUtils';
-import { db } from '../../firebase';
-import { optimizeUrl } from '../../utils/cloudinaryUtils';
+import { optimizeUrl, uploadToImageKit } from '../../utils/imagekitUtils';
 
 export default function ProfileHeader({
   user,
@@ -11,7 +10,7 @@ export default function ProfileHeader({
   setEditForm,
   isEditing,
   setIsEditing,
-  isOwnProfile, 
+  isOwnProfile,
 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -37,22 +36,16 @@ export default function ProfileHeader({
   const onCropComplete = useCallback((_, pixels) => {
     setCroppedAreaPixels(pixels);
   }, []);
-  
+
   const handleSaveCrop = async () => {
     if (!croppedAreaPixels) return;
     try {
       const base64 = await getCroppedImg(imageToCrop, croppedAreaPixels, croppingField);
       const blob = await (await fetch(base64)).blob();
 
-      const formData = new FormData();
-      formData.append('file', blob);
-      formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
-      const cloudRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: 'POST', body: formData }
-      );
-      const cloudData = await cloudRes.json();
-      setEditForm(prev => ({ ...prev, [croppingField]: cloudData.secure_url }));
+      const url = await uploadToCloudinary(blob);
+
+      setEditForm(prev => ({ ...prev, [croppingField]: url }));
       setImageToCrop(null);
       setCroppingField(null);
     } catch (e) {
@@ -61,9 +54,9 @@ export default function ProfileHeader({
     }
   };
 
-  const handleImageError = (e, fallback) => { 
+  const handleImageError = (e, fallback) => {
     if (fallback) {
-      e.target.src = fallback; 
+      e.target.src = fallback;
     } else {
       e.target.style.display = 'none';
     }
@@ -121,7 +114,6 @@ export default function ProfileHeader({
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           )}
-          {/* ... camera icon overlay stays here ... */}
           {isEditing && editForm.bannerUrl && (
             <button
               className="del-btn"
@@ -134,7 +126,7 @@ export default function ProfileHeader({
           )}
         </div>
 
-        {/* SECURITY FIX: Added isOwnProfile to ensure only the owner sees the "Edit Profile" button */}
+        {/* SECURITY FIX: Only the profile owner sees the Edit Profile button */}
         {user && isOwnProfile && !isEditing && (
           <button
             onClick={() => setIsEditing(true)}
@@ -154,28 +146,17 @@ export default function ProfileHeader({
               onError={(e) => handleImageError(e, '/bunny.png')}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-          {/* ... camera icon overlay stays here ... */}
-          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
-            <button
-              className="del-btn"
-              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
-              style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
-              title="Remove Avatar"
-            >
-                <img src="cam.svg" alt="cam" width="20" height="20" /><span>Change Icon</span>
-                </button>
+            {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
+              <button
+                className="del-btn"
+                onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
+                style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
+                title="Remove Avatar"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
             )}
           </div>
-          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
-            <button
-              className="del-btn"
-              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
-              style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
-              title="Remove Avatar"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-          )}
         </div>
       </div>
     </>
