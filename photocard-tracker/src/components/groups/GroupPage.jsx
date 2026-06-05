@@ -4,7 +4,7 @@ import { db } from '../../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, limit, startAfter, orderBy } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
-import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
+import { deleteCloudinaryImage, uploadToCloudinary, optimizeUrl } from '../../utils/cloudinaryUtils';
 import { useUserProfile } from '../../hooks/useUserProfile';
 
 export default function GroupPage() {
@@ -289,7 +289,7 @@ export default function GroupPage() {
 
             {conceptPhotos.length > 0 ? (
               <>
-                <img src={conceptPhotos[currentPhotoIndex].url} alt="Group" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={optimizeUrl(conceptPhotos[currentPhotoIndex].url, 600)} alt="Group" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1.5rem 1rem 1rem', background: 'linear-gradient(transparent, rgba(49,37,39,0.85))', color: '#FFF', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <div style={{ flex: 1 }}>
                     {isEditing ? (
@@ -509,7 +509,7 @@ export default function GroupPage() {
               <div className="merch-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}>
                 {merch.map(item => (
                    <div key={item.id} style={{ backgroundColor: '#D4C4C7', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
-                       <img src={item.imageUrl} alt={item.customName} style={{ width: '100%', height: '120px', objectFit: 'contain', borderRadius: '4px', backgroundColor: '#fff', marginBottom: '0.5rem' }} />
+                       <img src={optimizeUrl(item.imageUrl)} alt={item.customName} style={{ width: '100%', height: '120px', objectFit: 'contain', borderRadius: '4px', backgroundColor: '#fff', marginBottom: '0.5rem' }} />
                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#312527', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.customName}</p>
                        <p style={{ margin: 0, fontSize: '0.75rem', color: '#6A585B' }}>{item.memberName || 'Group'}</p>
                    </div>

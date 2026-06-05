@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 export default function GroupDirectory() {
   const [groups, setGroups] = useState([]);
@@ -64,7 +65,7 @@ export default function GroupDirectory() {
             >
               <div style={{ width: '110px', height: '110px', margin: '0 auto 0.75rem', borderRadius: '50%', backgroundColor: '#C2B0B4', overflow: 'hidden', border: '3px solid #E6DADD', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
                 <img
-                  src={group.groupImageUrl || '/bunny.png'}
+                  src={optimizeUrl(group.groupImageUrl || '/bunny.png')}
                   alt={group.name}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                 />

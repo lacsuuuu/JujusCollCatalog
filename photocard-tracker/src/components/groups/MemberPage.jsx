@@ -5,7 +5,7 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs, limit, start
 import { useAuth } from '../../context/AuthContext';
 import ThemeAlert from '../ui/ThemeAlert';
 import ItemDetailModal from '../ui/ItemDetailModal';
-import { deleteCloudinaryImage, uploadToCloudinary } from '../../utils/cloudinaryUtils';
+import { deleteCloudinaryImage, uploadToCloudinary, optimizeUrl } from '../../utils/cloudinaryUtils';
 import { useUserProfile } from '../../hooks/useUserProfile';
 
 export default function MemberPage() {
@@ -315,7 +315,7 @@ export default function MemberPage() {
 
             {conceptPhotos.length > 0 ? (
               <>
-                <img src={conceptPhotos[currentPhotoIndex].url} alt="Concept" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={optimizeUrl(conceptPhotos[currentPhotoIndex].url, 600)} alt="Concept" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1.5rem 1rem 1rem', background: 'linear-gradient(transparent, rgba(49,37,39,0.85))', color: '#FFF', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', zIndex: 20 }}>
                   <div style={{ flex: 1 }}>
                     {isEditing ? (
@@ -411,7 +411,7 @@ export default function MemberPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
                     <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#C2B0B4', overflow: 'hidden', border: '3px solid #E6DADD', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', flexShrink: 0 }}>
-                      <img src={data.profileImageUrl || '/bunny.png'} alt={data.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      <img src={optimizeUrl(data.profileImageUrl || '/bunny.png')} alt={data.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                     </div>
                     <div>
                       <h2 style={{ margin: 0, color: '#312527', fontSize: '2.5rem', lineHeight: '1.1' }}>
@@ -483,16 +483,16 @@ export default function MemberPage() {
                             <div className="flip-container" style={{ width: '100%', height: '100%' }}>
                               <div className="flipper" style={{ width: '100%', height: '100%' }}>
                                 <div className="front" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
-                                  <img src={card.imageUrl} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
+                                  <img src={optimizeUrl(card.imageUrl)} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
                                 </div>
                                 <div className="back" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
-                                  <img src={card.backImageUrl} alt={`${card.customName} back`} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
+                                  <img src={optimizeUrl(card.backImageUrl)} alt={`${card.customName} back`} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
                                 </div>
                               </div>
                             </div>
                           ) : (
                             <div style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: innerBgColor }}>
-                              <img src={card.imageUrl} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
+                              <img src={optimizeUrl(card.imageUrl)} alt={card.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, objectPosition: positionStyle, display: 'block' }} />
                             </div>
                           )}
                         </div>

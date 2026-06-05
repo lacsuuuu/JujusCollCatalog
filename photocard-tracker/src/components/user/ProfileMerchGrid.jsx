@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import CustomSelect from '../ui/CustomSelect';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 const GROUPS_PER_PAGE = 5;
 
@@ -18,16 +19,16 @@ function MerchCard({ item, onSelect }) {
           <div className="flip-container" style={{ width: '100%', height: '100%' }}>
             <div className="flipper" style={{ width: '100%', height: '100%' }}>
               <div className="front" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
-                <img src={item.imageUrl} alt={item.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, display: 'block' }} />
+                <img src={optimizeUrl(item.imageUrl)} alt={item.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, display: 'block' }} />
               </div>
               <div className="back" style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
-                <img src={item.backImageUrl} alt={`${item.customName} back`} style={{ width: '100%', height: '100%', objectFit: fitStyle, display: 'block' }} />
+                <img src={optimizeUrl(item.backImageUrl)} alt={`${item.customName} back`} style={{ width: '100%', height: '100%', objectFit: fitStyle, display: 'block' }} />
               </div>
             </div>
           </div>
         ) : (
           <div style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: innerBgColor }}>
-            <img src={item.imageUrl} alt={item.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, display: 'block' }} />
+            <img src={optimizeUrl(item.imageUrl)} alt={item.customName} style={{ width: '100%', height: '100%', objectFit: fitStyle, display: 'block' }} />
           </div>
         )}
 

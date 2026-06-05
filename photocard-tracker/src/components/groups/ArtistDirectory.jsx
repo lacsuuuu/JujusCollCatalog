@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 export default function ArtistDirectory({ user }) {
   const [groups, setGroups] = useState([]);
@@ -128,7 +129,7 @@ export default function ArtistDirectory({ user }) {
                       onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                     >
                       <div style={{ width: '100px', height: '100px', margin: '0 auto 0.5rem', borderRadius: '50%', backgroundColor: '#C2B0B4', overflow: 'hidden', border: '3px solid #E6DADD', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
-                        <img src={member.profileImageUrl || '/bunny.png'} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                        <img src={optimizeUrl(member.profileImageUrl || '/bunny.png')} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                       </div>
                       <h4 style={{ margin: 0, color: '#312527', fontSize: '0.9rem' }}>{member.name}</h4>
                       <p style={{ margin: 0, color: '#8D6E73', fontSize: '0.75rem' }}>{member.animal || ''}</p>

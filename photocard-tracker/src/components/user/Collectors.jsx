@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../../firebase';
-// ADDED: query, limit, and startAfter for pagination
 import { collection, getDocs, query, limit, startAfter } from 'firebase/firestore';
-import UserSearch from '../ui/UserSearch'; // Adjust this path if needed
+import UserSearch from '../ui/UserSearch';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 export default function Collectors() {
   const [collectors, setCollectors] = useState([]);
@@ -95,7 +95,7 @@ export default function Collectors() {
               e.currentTarget.style.boxShadow = '0 4px 12px rgba(49,37,39,0.08)';
             }}>
               <img
-                src={c.avatarUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23C2B0B4'/%3E%3C/svg%3E"}
+                src={optimizeUrl(c.avatarUrl || '/bunny.png')}
                 alt={c.name}
                 style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '1rem', border: '3px solid #E6DADD' }}
               />

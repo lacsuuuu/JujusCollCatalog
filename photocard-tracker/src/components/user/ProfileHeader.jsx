@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../../utils/imageUtils';
 import { db } from '../../firebase';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 export default function ProfileHeader({
   user,
@@ -114,7 +115,7 @@ export default function ProfileHeader({
           {activeData.bannerUrl && (
             <img
               key={activeData.bannerUrl}
-              src={activeData.bannerUrl}
+              src={optimizeUrl(activeData.bannerUrl, 1000)}
               alt="Banner"
               onError={(e) => handleImageError(e)}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -148,7 +149,7 @@ export default function ProfileHeader({
           <div className="profile-avatar-container" style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #E6DADD', backgroundColor: '#E6DADD', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
             <img
               key={activeData.avatarUrl}
-              src={activeData.avatarUrl || '/bunny.png'}
+              src={optimizeUrl(activeData.avatarUrl || '/bunny.png')}
               alt="Avatar"
               onError={(e) => handleImageError(e, '/bunny.png')}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}

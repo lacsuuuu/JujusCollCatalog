@@ -5,6 +5,7 @@ import { useBinders } from '../../hooks/useBinders';
 import { useMerch } from '../../hooks/useMerch';
 import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
 import ThemeAlert from '../ui/ThemeAlert';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 const BINDER_STYLES = `
   .theme-input { transition: box-shadow 0.2s ease; outline: none; }
@@ -330,7 +331,7 @@ export default function Binders({ user }) {
                         const card = merchId ? merch.find(m => m.id === merchId) : null;
                         return (
                           <div key={i} style={{ backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: '3px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            {card && <img src={card.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />}
+                            {card && <img src={optimizeUrl(card.imageUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />}
                           </div>
                         );
                       })}
@@ -454,7 +455,7 @@ export default function Binders({ user }) {
                       >
                         {card ? (
                           <>
-                            <img src={card.imageUrl} alt={card.customName} className="slot-image" draggable="false" />
+                            <img src={optimizeUrl(card.imageUrl)} alt={card.customName} className="slot-image" draggable="false" />
                             {isEditing && (
                               <button className="slot-remove-btn" onClick={(e) => { e.stopPropagation(); removeCardFromSlot(index); }}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -501,7 +502,7 @@ export default function Binders({ user }) {
                     (m.memberName || '').toLowerCase().includes(searchQuery.toLowerCase())
                   ).map(item => (
                     <div key={item.id} className="merch-picker-item" draggable onClick={() => handleCollectionClick(item.id)} onDragStart={(e) => dragDrop.handleCollectionDragStart(e, item.id)} style={{ borderRadius: '6px', overflow: 'hidden', backgroundColor: '#C2B0B4', aspectRatio: '63/100', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', cursor: 'pointer' }} title={`${item.customName || item.memberName} - Click or drag to add`}>
-                      <img src={item.imageUrl} alt={item.customName} draggable="false" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={optimizeUrl(item.imageUrl)} alt={item.customName} draggable="false" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   ))}
                   {merch.length === 0 && <p style={{ gridColumn: '1/-1', textAlign: 'center', color: '#6A585B' }}>No items in collection.</p>}

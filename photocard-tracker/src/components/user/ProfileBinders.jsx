@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { optimizeUrl } from '../../utils/cloudinaryUtils';
 
 export default function ProfileBinders({ userId, globalMerch }) {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ export default function ProfileBinders({ userId, globalMerch }) {
                     const card = merchId ? globalMerch?.find(m => m.id === merchId) : null;
                     return (
                       <div key={i} style={{ backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: '2px', overflow: 'hidden' }}>
-                        {card && <img src={card.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} draggable="false" />}
+                        {card && <img src={optimizeUrl(card.imageUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} draggable="false" />}
                       </div>
                     );
                   })}

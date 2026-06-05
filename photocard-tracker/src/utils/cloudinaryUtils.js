@@ -12,6 +12,11 @@ export const getPublicIdFromUrl = (url) => {
   return publicId;
 };
 
+export const optimizeUrl = (url, width = 300) => {
+  if (!url || !url.includes('cloudinary.com')) return url;
+  return url.replace('/upload/', `/upload/w_${width},q_auto,f_auto/`);
+};
+
 export const deleteCloudinaryImage = async (url) => {
   console.log("Image unlinked from Firebase. File remains in Cloudinary.");
   return true;
@@ -32,7 +37,7 @@ export const uploadToCloudinary = async (file) => {
   return data.secure_url;
 };
 
-const COMPRESSION_OPTIONS = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
+const COMPRESSION_OPTIONS = { maxSizeMB: 0.15, maxWidthOrHeight: 800, useWebWorker: true };
 
 export const compressAndUpload = async (file) => {
   const compressed = await imageCompression(file, COMPRESSION_OPTIONS);

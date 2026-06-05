@@ -177,9 +177,8 @@ function App() {
 
       <main style={{ width: '100%', maxWidth: '1000px', margin: '0 auto', padding: '2rem 1rem 5rem 1rem' }}>
 
-        <header style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-          <img src="/bunny.png" alt="Bunny" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
-          <span style={{ fontSize: '1.2rem', fontWeight: '700', color: '#312527', letterSpacing: '0.04em' }}>Juju's Coll Catalog</span>
+        <header style={{ display: 'flex', alignItems: 'center'}}>
+          <img src="/J_Header.png" alt="Juju's Coll Catalog" style={{ height: '60px', width: 'auto', objectFit: 'contain' }} />
         </header>
 
         <NavigationTabs user={user} canEdit={canEdit} profileData={profileData} />
