@@ -204,6 +204,7 @@ export default function Profile({ user }) {
             
             <input 
               type="text" 
+              className="theme-input"
               placeholder="Display Name" 
               value={editForm.displayName || ''} 
               onChange={e => setEditForm({ ...editForm, displayName: e.target.value })} 
@@ -212,6 +213,7 @@ export default function Profile({ user }) {
             
             <input 
               type="text" 
+              className="theme-input"
               placeholder="@username" 
               value={editForm.username || ''} 
               onChange={e => setEditForm({ ...editForm, username: e.target.value })} 
@@ -219,6 +221,7 @@ export default function Profile({ user }) {
             />
             
             <textarea 
+              className="theme-input"
               placeholder="Bio" 
               value={editForm.bio || ''} 
               onChange={e => setEditForm({ ...editForm, bio: e.target.value })} 

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../../utils/imageUtils';
-import { optimizeUrl, uploadToImageKit } from '../../utils/imagekitUtils';
+import { optimizeUrl, uploadToCloudinary } from '../../utils/cloudinaryUtils';
 
 export default function ProfileHeader({
   user,
@@ -64,8 +64,8 @@ export default function ProfileHeader({
 
   const overlayStyle = {
     position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-    backgroundColor: 'rgba(49,37,39,0.6)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', color: '#FFFFFF', fontWeight: 'bold',
+    backgroundColor: 'rgba(49,37,39,0.5)', display: 'flex', alignItems: 'center',
+    justifyContent: 'center',
     cursor: 'pointer', opacity: 0, transition: 'opacity 0.2s', zIndex: 10,
   };
 
@@ -73,6 +73,14 @@ export default function ProfileHeader({
 
   return (
     <>
+      <style>{`
+        .banner-overlay { opacity: 0; transition: opacity 0.2s; }
+        .profile-banner-container:hover .banner-overlay { opacity: 1; }
+        .avatar-overlay { opacity: 0; transition: opacity 0.2s; border-radius: 50%; }
+        .profile-avatar-container:hover .avatar-overlay { opacity: 1; }
+        .profile-avatar-container:hover ~ * .banner-overlay,
+        .profile-banner-container:has(.profile-avatar-container:hover) .banner-overlay { opacity: 0 !important; }
+      `}</style>
       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} />
 
       {/* Crop modal */}
@@ -104,7 +112,10 @@ export default function ProfileHeader({
 
       {/* Banner */}
       <div className="profile-banner-container" style={{ position: 'relative', marginBottom: '4rem', height: '250px', backgroundColor: '#D4C4C7', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden', borderRadius: '12px', backgroundColor: '#C2B0B4' }}>
+        <div 
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden', borderRadius: '12px', backgroundColor: '#C2B0B4', cursor: isEditing ? 'pointer' : 'default' }}
+          onClick={() => handleImageClick('banner')}
+        >
           {activeData.bannerUrl && (
             <img
               key={activeData.bannerUrl}
@@ -114,6 +125,14 @@ export default function ProfileHeader({
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           )}
+          {isEditing && (
+              <div
+                style={{ ...overlayStyle, opacity: undefined }}
+                className="banner-overlay"
+              >
+                <img src="/cam.svg" alt="Upload" width="36" height="36" style={{ filter: 'brightness(0) invert(1) opacity(0.85)' }} />
+              </div>
+            )}
           {isEditing && editForm.bannerUrl && (
             <button
               className="del-btn"
@@ -138,7 +157,11 @@ export default function ProfileHeader({
 
         {/* Avatar */}
         <div style={{ position: 'absolute', bottom: '-60px', left: '1rem', zIndex: 20 }}>
-          <div className="profile-avatar-container" style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #E6DADD', backgroundColor: '#E6DADD', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+          <div 
+            className="profile-avatar-container" 
+            style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #E6DADD', backgroundColor: '#E6DADD', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative', cursor: isEditing ? 'pointer' : 'default' }}
+            onClick={() => handleImageClick('avatar')}
+          >
             <img
               key={activeData.avatarUrl}
               src={optimizeUrl(activeData.avatarUrl || '/bunny.png')}
@@ -146,17 +169,22 @@ export default function ProfileHeader({
               onError={(e) => handleImageError(e, '/bunny.png')}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-            {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
-              <button
-                className="del-btn"
-                onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
-                style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
-                title="Remove Avatar"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
+            {isEditing && (
+              <div style={{ ...overlayStyle, opacity: undefined }} className="avatar-overlay">
+                <img src="/cam.svg" alt="Upload" width="28" height="28" style={{ filter: 'brightness(0) invert(1) opacity(0.85)' }} />
+              </div>
             )}
           </div>
+          {isEditing && editForm.avatarUrl && editForm.avatarUrl !== '/bunny.png' && (
+            <button
+              className="del-btn"
+              onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, avatarUrl: '/bunny.png' })); }}
+              style={{ position: 'absolute', top: '0px', right: '0px', backgroundColor: '#8D6E73', border: '2px solid #E6DADD', color: 'white', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', padding: 0 }}
+              title="Remove Avatar"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          )}
         </div>
       </div>
     </>

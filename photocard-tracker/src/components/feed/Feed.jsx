@@ -3,6 +3,7 @@ import { db } from '../../firebase';
 import { collection, query, orderBy, limit, getDocs, startAfter, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 import { deleteCloudinaryImage, compressAndUpload, optimizeUrl } from '../../utils/cloudinaryUtils';
+import { Link } from 'react-router-dom';
 
 const arrowStyle = {
   position: 'absolute', top: '50%', transform: 'translateY(-50%)',
@@ -351,7 +352,12 @@ export default function Feed({ user }) {
               <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                   <div>
+                    <Link 
+                        to={`/profile/${post.username}`} 
+                        style={{ textDecoration: 'none' }}
+                      >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      
                       {post.displayName && (
                         <span style={{ fontSize: '0.95rem', color: '#312527', fontWeight: '700' }}>{post.displayName}</span>
                       )}
@@ -360,6 +366,7 @@ export default function Feed({ user }) {
                       )}
                     </div>
                     <span style={{ fontSize: '0.78rem', color: '#A08D90' }}>{formatPostDate(post.timestamp)}</span>
+                    </Link>
                   </div>
 
                   {user && post.userId === user.uid && (

@@ -89,10 +89,10 @@ export default function UserSearch() {
   };
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <svg 
-          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ position: 'absolute', left: '12px', pointerEvents: 'none' }}
         >
           <circle cx="11" cy="11" r="8"></circle>
@@ -103,34 +103,24 @@ export default function UserSearch() {
           placeholder="Search collectors..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={() => { if (searchTerm.trim() !== '') setIsOpen(true); }}
+          onFocus={(e) => {
+            e.target.style.boxShadow = '0 0 0 2px #E6DADD, 0 0 0 4px #8D6E73';
+            if (searchTerm.trim() !== '') setIsOpen(true);
+          }}
+          onBlur={(e) => {
+            e.target.style.boxShadow = 'none';
+          }}
           style={{
             width: '100%',
-            padding: '0.65rem 1rem 0.65rem 2.5rem',
-            borderRadius: '20px',
-            border: '2px solid transparent',
-            backgroundColor: 'rgba(255,255,255,0.4)',
+            padding: '0.65rem 2rem 0.65rem 2.5rem',
+            borderRadius: '6px',
+            border: '1px solid #D4C4C7',
+            backgroundColor: '#C2B0B4',
             color: '#312527',
             fontSize: '0.9rem',
             outline: 'none',
             boxSizing: 'border-box',
-            transition: 'all 0.2s ease',
-            boxShadow: 'inset 0 2px 4px rgba(49,37,39,0.05)'
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.6)'}
-          onMouseLeave={(e) => {
-             if (document.activeElement !== e.target) {
-               e.target.style.backgroundColor = 'rgba(255,255,255,0.4)';
-             }
-          }}
-          onFocus={(e) => {
-            e.target.style.backgroundColor = '#FFFFFF';
-            e.target.style.borderColor = '#8D6E73';
-            if (searchTerm.trim() !== '') setIsOpen(true);
-          }}
-          onBlur={(e) => {
-            e.target.style.backgroundColor = 'rgba(255,255,255,0.4)';
-            e.target.style.borderColor = 'transparent';
+            transition: 'box-shadow 0.2s ease',
           }}
         />
         {searchTerm && (
@@ -172,7 +162,7 @@ export default function UserSearch() {
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               <img 
-                src={optimizeUrl(profile.avatarUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23C2B0B4'/%3E%3C/svg%3E")} 
+                src={optimizeUrl(profile.avatarUrl || '/bunny.png')} 
                 alt={profile.name} 
                 style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
               />

@@ -422,7 +422,7 @@ export default function AddMerch() {
                 <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>{category === 'Photocard' ? 'Change Front' : 'Change Image'}</p>
               </div>
             ) : (
-              <><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>{category === 'Photocard' ? 'Front Image' : 'Drop image here'}</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
+              <><img src="/frame.svg" alt="Frame" width="35" height="35" style={{ opacity: 0.6, marginBottom: '0.25rem' }} /><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>{category === 'Photocard' ? 'Front Image' : 'Drop image here'}</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
             )}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={e => handleFile(e.target.files[0])} style={{ display: 'none' }} />
           </div>
@@ -445,7 +445,7 @@ export default function AddMerch() {
                   <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>Change Back</p>
                 </div>
               ) : (
-                <><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Backprint</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
+                <><img src="/frame.svg" alt="Frame" width="35" height="35" style={{ opacity: 0.6, marginBottom: '0.25rem' }} /><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Backprint</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
               )}
               <input ref={backFileInputRef} type="file" accept="image/*" onChange={e => handleBackFile(e.target.files[0])} style={{ display: 'none' }} />
             </div>
