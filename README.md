@@ -14,6 +14,6 @@ This project is mainly for self consumption and as of right now not planned to b
 This Project is AI assisted.
 
 # The Project Uses:
-- React (for front-end)
+- React and Vite(for front-end)
 - Firebase (for the general text-based database elements)
 - Cloudinary (for the storage of uploaded images.
