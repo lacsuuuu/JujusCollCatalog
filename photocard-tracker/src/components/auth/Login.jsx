@@ -457,8 +457,10 @@ export default function Login() {
         const usernameSnap = await getDoc(doc(db, 'usernames', identifier.toLowerCase()));
         loginEmail = usernameSnap.exists() ? usernameSnap.data().email : `${identifier}@admin.local`;
       }
-      await signInWithEmailAndPassword(auth, loginEmail, password);
-      navigate('/');
+      const cred = await signInWithEmailAndPassword(auth, loginEmail, password);
+      const profileSnap = await getDoc(doc(db, 'profile', cred.user.uid));
+      const uname = profileSnap.exists() ? profileSnap.data().username : null;
+      navigate(uname ? `/profile/${uname}` : '/feed');
     } catch {
       setAlertMsg('Invalid credentials.');
     }
@@ -492,8 +494,8 @@ export default function Login() {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const profileSnap = await getDoc(doc(db, 'profile', result.user.uid));
-      if (profileSnap.exists()) {
-        navigate('/');
+      if (profileSnap.exists() && profileSnap.data().username) {
+        navigate(`/profile/${profileSnap.data().username}`);
       } else {
         setGoogleUser(result.user);
         setMode('google-setup');
@@ -519,7 +521,7 @@ export default function Login() {
         createdAt: new Date()
       });
       await batch.commit();
-      navigate('/');
+      navigate(`/profile/${username}`);
     } catch (error) {
       setAlertMsg(error.message);
     }
