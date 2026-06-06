@@ -10,10 +10,10 @@ The Catalog lets the user:
 - Build a custom profile for the Groups and Members.
 
 # Note:
-This project is mainly for self consumption and as of right now not planned to be published or to be used by the public.
+This is a passion project by a collector for other collectors.
 This Project is AI assisted.
 
 # The Project Uses:
 - React and Vite(for front-end)
 - Firebase (for the general text-based database elements)
-- Cloudinary (for the storage of uploaded images.
+- Cloudinary and ImageKit (for the storage of uploaded images)
