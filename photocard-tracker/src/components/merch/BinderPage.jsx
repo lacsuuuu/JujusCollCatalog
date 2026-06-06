@@ -1,18 +1,45 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebase';
-import { doc, getDoc, onSnapshot, collection } from 'firebase/firestore';
-import { deleteField } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { deleteField, updateDoc } from 'firebase/firestore';
 import { useMerch } from '../../hooks/useMerch';
 import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
-import { updateDoc } from 'firebase/firestore';
 import { optimizeUrl } from '../../utils/imageKitUtils';
 import ThemeAlert from '../ui/ThemeAlert';
 
-const PAGE_STYLES = `
-  .theme-input { transition: box-shadow 0.2s ease; outline: none; }
-  .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
+// index.css — add inside @theme and global scope:
+//
+// @keyframes flipForward {
+//   0%   { transform: rotateY(0deg); }
+//   100% { transform: rotateY(-180deg); }
+// }
+// @keyframes flipBack {
+//   0%   { transform: rotateY(0deg); }
+//   100% { transform: rotateY(180deg); }
+// }
+//
+// @theme {
+//   --animate-flip-forward: flipForward 0.7s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
+//   --animate-flip-back:    flipBack    0.7s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
+// }
 
+// Preloads an array of image URLs, resolves when all are loaded or timeout hits
+const preloadImages = (urls, timeoutMs = 800) => {
+  const filtered = urls.filter(Boolean);
+  if (!filtered.length) return Promise.resolve();
+  return Promise.race([
+    Promise.all(filtered.map(url => new Promise(resolve => {
+      const img = new Image();
+      img.onload = resolve;
+      img.onerror = resolve; // don't block on broken images
+      img.src = url;
+    }))),
+    new Promise(resolve => setTimeout(resolve, timeoutMs)),
+  ]);
+};
+
+const SLOT_STYLES = `
   .slot-container {
     aspect-ratio: 63 / 100;
     border-radius: 8px;
@@ -28,29 +55,22 @@ const PAGE_STYLES = `
   .slot-container.filled { border: 2px solid transparent; background-color: transparent; }
   .slot-container.editable { cursor: grab; }
   .slot-container.dragging-over { border: 2px solid #8D6E73; background-color: rgba(141,110,115,0.15); transform: scale(1.03); }
-
   .slot-remove-btn {
     position: absolute; top: 4px; right: 4px;
     background-color: rgba(49,37,39,0.7); border: none; border-radius: 50%;
     width: 24px; height: 24px; cursor: pointer;
     display: flex; justify-content: center; align-items: center;
-    opacity: 0; transition: opacity 0.2s;
-    padding: 0;
+    opacity: 0; transition: opacity 0.2s; padding: 0;
   }
   .slot-container:hover .slot-remove-btn { opacity: 1; }
-
   .merch-picker-item { transition: transform 0.2s; cursor: pointer; }
   .merch-picker-item:hover { transform: scale(1.05); z-index: 5; }
-
   .custom-scroll::-webkit-scrollbar { width: 8px; }
   .custom-scroll::-webkit-scrollbar-track { background: transparent; }
   .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
   .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
-
-  @media (max-width: 900px) {
-    .binder-layout { flex-direction: column !important; }
-    .collection-panel { width: 100% !important; max-height: 400px !important; }
-  }
+  .theme-input { transition: box-shadow 0.2s ease; outline: none; }
+  .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
 `;
 
 export default function BinderPage({ user }) {
@@ -64,6 +84,10 @@ export default function BinderPage({ user }) {
   const [isPrivate, setIsPrivate] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(0);
+  const [isFlipping, setIsFlipping] = useState(false);
+  const [flipDir, setFlipDir] = useState(null);       // 'forward' | 'back'
+  const [pendingPage, setPendingPage] = useState(null);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
@@ -76,38 +100,20 @@ export default function BinderPage({ user }) {
   const isOwner = user?.uid && binder?.userId === user.uid;
   const canEdit = isOwner;
 
-  // Live listener for the binder doc
   useEffect(() => {
     if (!binderId) return;
     setPageLoading(true);
-
     const unsub = onSnapshot(doc(db, 'binders', binderId), async (snap) => {
-      if (!snap.exists()) {
-        setNotFound(true);
-        setPageLoading(false);
-        return;
-      }
-
+      if (!snap.exists()) { setNotFound(true); setPageLoading(false); return; }
       const data = { id: snap.id, ...snap.data() };
-
-      // If private and not the owner, block access
-      if (!data.isPublic && user?.uid !== data.userId) {
-        setIsPrivate(true);
-        setPageLoading(false);
-        return;
-      }
-
+      if (!data.isPublic && user?.uid !== data.userId) { setIsPrivate(true); setPageLoading(false); return; }
       setBinder(data);
-
-      // Fetch owner profile for display
       try {
         const profileSnap = await getDoc(doc(db, 'profile', data.userId));
         if (profileSnap.exists()) setOwnerProfile(profileSnap.data());
       } catch { /* silent */ }
-
       setPageLoading(false);
     });
-
     return () => unsub();
   }, [binderId, user?.uid]);
 
@@ -116,8 +122,7 @@ export default function BinderPage({ user }) {
     return Math.max(
       binder.totalPages || 1,
       Object.keys(binder.slots || {}).reduce(
-        (max, key) => Math.max(max, parseInt(key.split('-')[0], 10) + 1),
-        1
+        (max, key) => Math.max(max, parseInt(key.split('-')[0], 10) + 1), 1
       )
     );
   }, [binder]);
@@ -128,10 +133,56 @@ export default function BinderPage({ user }) {
     currentPage,
     user,
     onUpdate: (updates) =>
-      updateDoc(doc(db, 'binders', binderId), updates).catch(() =>
-        setAlertMsg("Error updating binder slots.")
-      ),
+      updateDoc(doc(db, 'binders', binderId), updates).catch(() => setAlertMsg("Error updating binder slots.")),
   });
+
+  const goToPage = async (newPage) => {
+    if (newPage === currentPage || isFlipping) return;
+    const dir = newPage > currentPage ? 'forward' : 'back';
+
+    // Collect all images that will appear during the flip:
+    // - back face of the leaf (what's revealed mid-flip)
+    // - destination spread (visible underneath)
+    const destLeftPage  = dir === 'forward' ? currentPage  : newPage - 1;
+    const destRightPage = newPage;
+
+    const urlsToPreload = [];
+    for (let i = 0; i < binder.type; i++) {
+      // Leaf back face
+      const leafBackId = dir === 'forward'
+        ? binder.slots?.[`${currentPage}-${i}`]   // back of current page (showBack)
+        : binder.slots?.[`${newPage}-${i}`];       // front of destination page
+      const leafBackCard = leafBackId ? merch.find(m => m.id === leafBackId) : null;
+      if (leafBackCard) {
+        if (dir === 'forward' && leafBackCard.backImageUrl) urlsToPreload.push(optimizeUrl(leafBackCard.backImageUrl));
+        if (dir === 'back') urlsToPreload.push(optimizeUrl(leafBackCard.imageUrl));
+      }
+
+      // Destination left (back images)
+      if (destLeftPage >= 0) {
+        const leftId = binder.slots?.[`${destLeftPage}-${i}`];
+        const leftCard = leftId ? merch.find(m => m.id === leftId) : null;
+        if (leftCard?.backImageUrl) urlsToPreload.push(optimizeUrl(leftCard.backImageUrl));
+      }
+
+      // Destination right (front images)
+      const rightId = binder.slots?.[`${destRightPage}-${i}`];
+      const rightCard = rightId ? merch.find(m => m.id === rightId) : null;
+      if (rightCard) urlsToPreload.push(optimizeUrl(rightCard.imageUrl));
+    }
+
+    await preloadImages(urlsToPreload);
+
+    setFlipDir(dir);
+    setPendingPage(newPage);
+    setIsFlipping(true);
+    setTimeout(() => {
+      setCurrentPage(newPage);
+      setIsFlipping(false);
+      setFlipDir(null);
+      setPendingPage(null);
+    }, 720);
+  };
 
   const handleAddPage = async () => {
     try {
@@ -219,82 +270,125 @@ export default function BinderPage({ user }) {
     });
   };
 
-  // ── Loading state ────────────────────────────────────────
-  if (pageLoading) {
+  // ── Card grid renderer ───────────────────────────────────
+  // showBack: show backImageUrl instead of front
+  // interactive: enable drag/drop + remove buttons (right page only)
+  const renderGrid = (page, { showBack = false, interactive = false } = {}) => {
+    const cols = binder.type === 4 ? 'grid-cols-2' : 'grid-cols-3';
     return (
-      <div style={{ textAlign: 'center', color: '#6A585B', padding: '4rem' }}>
-        Loading binder...
+      <div className={`grid ${cols} gap-3`}>
+        {Array.from({ length: binder.type }).map((_, index) => {
+          const merchId = binder.slots?.[`${page}-${index}`];
+          const card = merchId ? merch.find(m => m.id === merchId) : null;
+          const imgUrl = card
+            ? (showBack && card.backImageUrl ? optimizeUrl(card.backImageUrl) : optimizeUrl(card.imageUrl))
+            : null;
+          const isDragTarget = interactive && dragDrop.dragOverSlot === index;
+          return (
+            <div
+              key={index}
+              className={`slot-container ${card ? 'filled' : ''} ${interactive && isEditing ? 'editable' : ''} ${isDragTarget ? 'dragging-over' : ''}`}
+              draggable={!!(interactive && isEditing && card)}
+              onDragStart={(e) => interactive && canEdit && dragDrop.handleSlotDragStart(e, index)}
+              onDragOver={(e) => interactive && canEdit && dragDrop.handleDragOver(e, index)}
+              onDragLeave={() => interactive && canEdit && dragDrop.handleDragLeave()}
+              onDrop={(e) => interactive && canEdit && dragDrop.handleDrop(e, index)}
+            >
+              {card ? (
+                <>
+                  <img src={imgUrl} alt={card.customName} draggable="false" className="w-full h-full object-cover" />
+                  {interactive && isEditing && canEdit && (
+                    <button className="slot-remove-btn" onClick={(e) => { e.stopPropagation(); removeCardFromSlot(index); }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <span className={`text-[#A08D90] text-3xl ${interactive && isEditing ? 'opacity-60' : 'opacity-20'}`}>+</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
-  }
+  };
 
-  // ── Not found ────────────────────────────────────────────
-  if (notFound) {
-    return (
-      <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-        <h2 style={{ color: '#312527' }}>Binder not found</h2>
-        <p style={{ color: '#6A585B' }}>This binder may have been deleted.</p>
-        <button onClick={() => navigate(-1)} style={{ marginTop: '1rem', padding: '0.6rem 1.5rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Go Back</button>
-      </div>
-    );
-  }
+  // ── Loading / error states ───────────────────────────────
+  if (pageLoading) return <div className="text-center text-[#6A585B] py-16">Loading binder...</div>;
 
-  // ── Private ──────────────────────────────────────────────
-  if (isPrivate) {
-    return (
-      <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-        <div style={{ display: 'inline-flex', marginBottom: '1.5rem', width: '72px', height: '72px', backgroundColor: '#D4C4C7', borderRadius: '50%', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
-        </div>
-        <h2 style={{ color: '#312527', margin: '0 0 0.5rem 0' }}>This binder is private</h2>
-        <p style={{ color: '#6A585B', margin: '0 0 2rem 0' }}>Only the owner can view this binder.</p>
-        <button onClick={() => navigate(-1)} style={{ padding: '0.6rem 1.5rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Go Back</button>
+  if (notFound) return (
+    <div className="text-center py-16 px-8">
+      <h2 className="text-[#312527] text-2xl font-bold">Binder not found</h2>
+      <p className="text-[#6A585B] mt-2">This binder may have been deleted.</p>
+      <button onClick={() => navigate(-1)} className="mt-4 px-6 py-2 bg-[#8D6E73] text-white rounded-lg font-bold">Go Back</button>
+    </div>
+  );
+
+  if (isPrivate) return (
+    <div className="text-center py-16 px-8">
+      <div className="inline-flex mb-6 w-18 h-18 bg-[#D4C4C7] rounded-full items-center justify-center">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
       </div>
-    );
-  }
+      <h2 className="text-[#312527] text-2xl font-bold">This binder is private</h2>
+      <p className="text-[#6A585B] mt-2 mb-8">Only the owner can view this binder.</p>
+      <button onClick={() => navigate(-1)} className="px-6 py-2 bg-[#8D6E73] text-white rounded-lg font-bold">Go Back</button>
+    </div>
+  );
+
+  // ── Spread logic ─────────────────────────────────────────
+  // currentPage is the right (front) page; currentPage-1 is the left (back) page
+  const leftPage = currentPage - 1;   // -1 = no left page (cover)
+  const rightPage = currentPage;
+
+  // During flip, the destination spread sits underneath the animated leaf
+  const destLeft  = pendingPage !== null ? (flipDir === 'forward' ? currentPage      : pendingPage - 1) : null;
+  const destRight = pendingPage !== null ? (flipDir === 'forward' ? pendingPage       : pendingPage)    : null;
+
+  const spreadMaxW = binder.type === 9 ? 'max-w-[900px]' : binder.type === 4 ? 'max-w-[750px]' : 'max-w-[820px]';
 
   return (
-    <div style={{ width: '100%', animation: 'fadeIn 0.3s' }}>
-      <style>{PAGE_STYLES}</style>
+    <div className="w-full animate-[fadeIn_0.3s]">
+      <style>{SLOT_STYLES}</style>
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
 
       {/* Confirm modal */}
       {confirmAction && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(49,37,39,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#E6DADD', padding: '1.5rem 2rem', borderRadius: '12px', textAlign: 'center', maxWidth: '320px', width: '90%' }}>
-            <p style={{ color: '#312527', margin: '0 0 1.5rem 0', fontWeight: '600', lineHeight: '1.4' }}>{confirmAction.message}</p>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-              <button onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }} style={{ padding: '0.5rem 1.5rem', backgroundColor: '#8D6E73', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Confirm</button>
-              <button onClick={() => setConfirmAction(null)} style={{ padding: '0.5rem 1.5rem', backgroundColor: 'transparent', color: '#8D6E73', border: '1px solid #8D6E73', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+        <div className="fixed inset-0 bg-[rgba(49,37,39,0.6)] flex justify-center items-center z-[9999]">
+          <div className="bg-[#E6DADD] p-6 rounded-xl text-center max-w-xs w-[90%]">
+            <p className="text-[#312527] font-semibold mb-6 leading-snug">{confirmAction.message}</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }} className="px-6 py-2 bg-[#8D6E73] text-white rounded-lg font-semibold">Confirm</button>
+              <button onClick={() => setConfirmAction(null)} className="px-6 py-2 border border-[#8D6E73] text-[#8D6E73] rounded-lg">Cancel</button>
             </div>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#6A585B', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <div className="w-full flex justify-between items-center mb-8 flex-wrap gap-4">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-[#6A585B] font-bold bg-transparent border-none cursor-pointer p-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Back
         </button>
 
-        <div style={{ flex: 1, textAlign: 'center' }}>
+        <div className="flex-1 text-center">
           {canEdit && editingName ? (
             <input
-              autoFocus className="theme-input" value={editNameValue}
+              autoFocus className="theme-input bg-[#D4C4C7] border-none rounded-lg text-[#312527] text-2xl font-bold px-4 py-1 text-center"
+              value={editNameValue}
               onChange={e => setEditNameValue(e.target.value)}
               onBlur={() => handleRenameSave(editNameValue)}
               onKeyDown={e => { if (e.key === 'Enter') handleRenameSave(editNameValue); }}
-              style={{ background: '#D4C4C7', border: 'none', borderRadius: '6px', color: '#312527', fontSize: '1.4rem', fontWeight: '700', padding: '0.4rem 1rem', textAlign: 'center' }}
             />
           ) : (
             <div>
               <h2
                 onDoubleClick={() => { if (canEdit) { setEditNameValue(binder.name); setEditingName(true); } }}
-                style={{ margin: 0, fontSize: '1.6rem', fontWeight: '700', color: '#312527', cursor: canEdit ? 'text' : 'default' }}
+                className={`m-0 text-3xl font-bold text-[#312527] ${canEdit ? 'cursor-text' : ''}`}
                 title={canEdit ? 'Double click to rename' : ''}
               >
                 {binder.name}
@@ -302,9 +396,7 @@ export default function BinderPage({ user }) {
               {ownerProfile && !isOwner && (
                 <p
                   onClick={() => navigate(`/profile/${binder.userId}`)}
-                  style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: '#8D6E73', cursor: 'pointer', fontWeight: '600' }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = 0.7}
-                  onMouseLeave={e => e.currentTarget.style.opacity = 1}
+                  className="mt-1 text-sm text-[#8D6E73] cursor-pointer font-semibold hover:opacity-70 transition-opacity"
                 >
                   by {ownerProfile.name || 'Unknown'}
                 </p>
@@ -313,104 +405,189 @@ export default function BinderPage({ user }) {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div className="flex gap-3 items-center">
           {canEdit && (
             <>
-              <button onClick={() => setIsEditing(!isEditing)} style={{ padding: '0.5rem 1.2rem', backgroundColor: isEditing ? '#8D6E73' : 'transparent', color: isEditing ? '#FFF' : '#8D6E73', border: '2px solid #8D6E73', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem', transition: 'all 0.2s' }}>
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                className={`px-5 py-2 border-2 border-[#8D6E73] rounded-lg font-bold text-sm transition-all ${isEditing ? 'bg-[#8D6E73] text-white' : 'bg-transparent text-[#8D6E73]'}`}
+              >
                 {isEditing ? 'Done Editing' : 'Edit Binder'}
               </button>
               {isEditing && (
-                <button onClick={handleDeleteBinder} style={{ padding: '0.5rem 1rem', backgroundColor: 'transparent', color: '#A85A66', border: '1px solid #A85A66', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <button onClick={handleDeleteBinder} className="px-4 py-2 border border-[#A85A66] text-[#A85A66] bg-transparent rounded-lg text-sm cursor-pointer">
                   Delete Binder
                 </button>
               )}
             </>
           )}
           {!canEdit && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', backgroundColor: 'rgba(141,110,115,0.12)', borderRadius: '20px' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              <span style={{ fontSize: '0.8rem', color: '#8D6E73', fontWeight: '700', letterSpacing: '0.05em', textTransform: 'uppercase' }}>View Only</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[rgba(141,110,115,0.12)] rounded-full">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+              <span className="text-xs text-[#8D6E73] font-bold tracking-widest uppercase">View Only</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Binder content */}
-      <div className="binder-layout" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', justifyContent: isEditing ? 'flex-start' : 'center' }}>
-        <div style={{ flex: isEditing ? '0 0 auto' : '1', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: binder.type === 9 ? '550px' : binder.type === 4 ? '400px' : '500px', margin: isEditing ? '0' : '0 auto' }}>
+      <div className={`flex gap-6 items-start ${isEditing ? 'justify-start' : 'justify-center'}`}>
+        <div className={`flex flex-col items-center w-full ${spreadMaxW} ${isEditing ? '' : 'mx-auto'}`}>
 
-          {/* Page Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minWidth: '280px', marginBottom: '1.5rem', backgroundColor: '#D4C4C7', padding: '0.5rem 1.5rem', borderRadius: '30px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-              <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} style={{ background: 'none', border: 'none', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', color: currentPage === 0 ? '#C2B0B4' : '#312527', display: 'flex', padding: 0 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          {/* Page controls */}
+          <div className="flex items-center justify-center relative min-w-[280px] mb-6 bg-[#D4C4C7] px-6 py-2 rounded-full">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => goToPage(Math.max(0, currentPage - 1))}
+                disabled={currentPage === 0 || isFlipping}
+                className={`p-0 bg-transparent border-none flex ${currentPage === 0 || isFlipping ? 'cursor-not-allowed text-[#C2B0B4]' : 'cursor-pointer text-[#312527]'}`}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
-              <span style={{ fontWeight: '700', color: '#312527', fontSize: '1rem', minWidth: '95px', textAlign: 'center' }}>
+              <span className="font-bold text-[#312527] text-base min-w-[95px] text-center">
                 Page {currentPage + 1} / {computedTotalPages}
               </span>
-              <button onClick={() => setCurrentPage(p => Math.min(computedTotalPages - 1, p + 1))} disabled={currentPage >= computedTotalPages - 1} style={{ background: 'none', border: 'none', cursor: currentPage >= computedTotalPages - 1 ? 'not-allowed' : 'pointer', color: currentPage >= computedTotalPages - 1 ? '#C2B0B4' : '#312527', display: 'flex', padding: 0 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              <button
+                onClick={() => goToPage(Math.min(computedTotalPages - 1, currentPage + 1))}
+                disabled={currentPage >= computedTotalPages - 1 || isFlipping}
+                className={`p-0 bg-transparent border-none flex ${currentPage >= computedTotalPages - 1 || isFlipping ? 'cursor-not-allowed text-[#C2B0B4]' : 'cursor-pointer text-[#312527]'}`}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
               </button>
             </div>
             {canEdit && (
-              <button onClick={handleSetCover} title={binder.coverPage === currentPage ? "Remove Cover Page" : "Set as Cover Page"} style={{ position: 'absolute', right: '16px', background: 'none', border: 'none', cursor: 'pointer', color: binder.coverPage === currentPage ? '#8D6E73' : '#A08D90', display: 'flex', transition: 'all 0.2s', padding: 0 }}>
+              <button
+                onClick={handleSetCover}
+                title={binder.coverPage === currentPage ? "Remove Cover Page" : "Set as Cover Page"}
+                className={`absolute right-4 p-0 bg-transparent border-none cursor-pointer flex transition-all ${binder.coverPage === currentPage ? 'text-[#8D6E73]' : 'text-[#A08D90]'}`}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill={binder.coverPage === currentPage ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
               </button>
             )}
           </div>
 
-          {/* Binder Grid */}
-          <div style={{ backgroundColor: '#F9F6F0', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 8px 24px rgba(49,37,39,0.15)', width: '100%', borderLeft: '12px solid #C2B0B4', boxSizing: 'border-box' }}>
-            <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: binder.type === 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)' }}>
-              {Array.from({ length: binder.type }).map((_, index) => {
-                const merchId = binder.slots?.[`${currentPage}-${index}`];
-                const card = merchId ? merch.find(m => m.id === merchId) : null;
-                const isDragTarget = dragDrop.dragOverSlot === index;
-                return (
-                  <div
-                    key={index}
-                    className={`slot-container ${card ? 'filled' : ''} ${isEditing ? 'editable' : ''} ${isDragTarget ? 'dragging-over' : ''}`}
-                    draggable={!!(isEditing && card)}
-                    onDragStart={(e) => canEdit && dragDrop.handleSlotDragStart(e, index)}
-                    onDragOver={(e) => canEdit && dragDrop.handleDragOver(e, index)}
-                    onDragLeave={() => canEdit && dragDrop.handleDragLeave()}
-                    onDrop={(e) => canEdit && dragDrop.handleDrop(e, index)}
-                  >
-                    {card ? (
-                      <>
-                        <img src={optimizeUrl(card.imageUrl)} alt={card.customName} className="slot-image" draggable="false" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        {isEditing && canEdit && (
-                          <button className="slot-remove-btn" onClick={(e) => { e.stopPropagation(); removeCardFromSlot(index); }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <span style={{ color: '#A08D90', fontSize: '2rem', opacity: isEditing ? 0.6 : 0.2 }}>+</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          {/* ── Book spread ── */}
+          <div
+            className="relative flex w-full rounded-xl"
+            style={{
+              boxShadow: '0 8px 32px rgba(49,37,39,0.18)',
+              perspective: '2000px',
+            }}
+          >
+            {/* Base layer: destination spread (under the leaf while flipping) or current spread */}
+            {isFlipping ? (
+              <>
+                {/* Destination left — back of currentPage (the page just turned) */}
+                <div className="flex-1 bg-[#F9F6F0] p-5 rounded-l-xl border-l-[12px] border-[#C2B0B4] border-r border-r-[#D4C4C7] box-border"
+                  style={{ boxShadow: '-4px 0 12px rgba(49,37,39,0.08)' }}>
+                  {destLeft !== null && destLeft >= 0
+                    ? renderGrid(destLeft, { showBack: true })
+                    : null}
+                </div>
+                {/* Spine */}
+                <div className="w-2.5 flex-shrink-0 self-stretch"
+                  style={{ background: 'linear-gradient(to right, rgba(49,37,39,0.12), rgba(49,37,39,0.04), rgba(49,37,39,0.12))' }} />
+                {/* Destination right */}
+                <div className="flex-1 bg-[#F9F6F0] p-5 rounded-r-xl border-r-0 box-border"
+                  style={{ boxShadow: '4px 0 18px rgba(49,37,39,0.15), inset -8px 0 16px rgba(49,37,39,0.06)' }}>
+                  {destRight !== null ? renderGrid(destRight, { interactive: false }) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Current left — back of previous page */}
+                <div className={`flex-1 bg-[#F9F6F0] p-5 rounded-l-xl border-l-[12px] border-[#C2B0B4] border-r border-r-[#D4C4C7] box-border ${leftPage < 0 ? 'invisible' : ''}`}
+                  style={{ boxShadow: '-4px 0 12px rgba(49,37,39,0.08)' }}>
+                  {leftPage >= 0 ? renderGrid(leftPage, { showBack: true }) : null}
+                </div>
+                {/* Spine */}
+                <div className="w-2.5 flex-shrink-0 self-stretch"
+                  style={{ background: 'linear-gradient(to right, rgba(49,37,39,0.12), rgba(49,37,39,0.04), rgba(49,37,39,0.12))' }} />
+                {/* Current right */}
+                <div className="flex-1 bg-[#F9F6F0] p-5 rounded-r-xl box-border"
+                  style={{ boxShadow: '4px 0 18px rgba(49,37,39,0.15), inset -8px 0 16px rgba(49,37,39,0.06)' }}>
+                  {renderGrid(rightPage, { interactive: true })}
+                </div>
+              </>
+            )}
+
+            {/* Turning leaf — animates over the base layer */}
+            {isFlipping && (
+              <div
+                className={`absolute top-0 h-full w-1/2 ${flipDir === 'forward' ? 'right-0 animate-flip-forward' : 'left-0 animate-flip-back'}`}
+                style={{
+                  transformStyle: 'preserve-3d',
+                  // Origin stays on the spine side so the page hinges correctly.
+                  // The "swing out from outer edge" feel comes from the easing curve
+                  // (slow start = page peels up) rather than changing transform-origin mid-flight,
+                  // which would cause a visual jump.
+                  transformOrigin: flipDir === 'forward' ? 'left center' : 'right center',
+                  zIndex: 10,
+                }}
+              >
+                {/* Front face: the page being lifted away */}
+                <div
+                  className="absolute inset-0 bg-[#F9F6F0] p-5 overflow-hidden box-border"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    borderRadius: flipDir === 'forward' ? '0 12px 12px 0' : '12px 0 0 12px',
+                    boxShadow: flipDir === 'forward'
+                      ? '4px 0 18px rgba(49,37,39,0.15)'
+                      : '-4px 0 12px rgba(49,37,39,0.08)',
+                  }}
+                >
+                  {flipDir === 'forward'
+                    ? renderGrid(rightPage, { interactive: false })        // front of current right page lifts away
+                    : renderGrid(leftPage, { showBack: true })             // back of current left page lifts away
+                  }
+                </div>
+
+                {/* Back face: revealed as leaf crosses 90° */}
+                <div
+                  className="absolute inset-0 bg-[#F9F6F0] p-5 overflow-hidden box-border"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                    borderRadius: flipDir === 'forward' ? '12px 0 0 12px' : '0 12px 12px 0',
+                    boxShadow: flipDir === 'forward'
+                      ? '-4px 0 12px rgba(49,37,39,0.08)'
+                      : '4px 0 18px rgba(49,37,39,0.15)',
+                  }}
+                >
+                  {flipDir === 'forward'
+                    ? renderGrid(currentPage, { showBack: true })          // back of the just-turned page becomes new left
+                    : renderGrid(pendingPage, { interactive: false })      // front of destination page becomes new right
+                  }
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bottom page controls (owner only) */}
           {isEditing && canEdit && (
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', width: '100%', justifyContent: 'center' }}>
+            <div className="flex gap-4 mt-6 w-full justify-center">
               {computedTotalPages > 1 && (
-                <button onClick={handleDeletePage} style={{ padding: '0.6rem 1.2rem', backgroundColor: 'transparent', color: '#A85A66', border: '2px solid #A85A66', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'background 0.2s, color 0.2s' }}
-                  onMouseOver={e => { e.currentTarget.style.backgroundColor = '#A85A66'; e.currentTarget.style.color = '#FFF'; }}
-                  onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#A85A66'; }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <button
+                  onClick={handleDeletePage}
+                  className="px-5 py-2 bg-transparent text-[#A85A66] border-2 border-[#A85A66] rounded-lg font-bold flex items-center gap-1.5 transition-all hover:bg-[#A85A66] hover:text-white"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
                   Remove Page
                 </button>
               )}
-              <button onClick={handleAddPage} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'filter 0.2s' }}
-                onMouseOver={e => { e.currentTarget.style.filter = 'brightness(0.9)'; }}
-                onMouseOut={e => { e.currentTarget.style.filter = 'brightness(1)'; }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <button
+                onClick={handleAddPage}
+                className="px-5 py-2 bg-[#8D6E73] text-white border-none rounded-lg font-bold flex items-center gap-1.5 transition-all hover:brightness-90"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
                 Add New Page
               </button>
             </div>
@@ -419,20 +596,32 @@ export default function BinderPage({ user }) {
 
         {/* Collection sidebar (owner edit mode only) */}
         {isEditing && canEdit && (
-          <div className="collection-panel" style={{ flex: 1, backgroundColor: '#D4C4C7', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: '600px', boxShadow: '0 4px 12px rgba(49,37,39,0.1)' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#312527', fontSize: '1.2rem' }}>Photocards</h3>
-            <p style={{ margin: '0 0 1rem 0', color: '#6A585B', fontSize: '0.85rem', fontStyle: 'italic' }}>Click or drag cards to add them to the binder.</p>
-            <input className="theme-input" placeholder="Search collection..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '0.8rem 1rem', borderRadius: '6px', border: 'none', backgroundColor: '#C2B0B4', marginBottom: '1.2rem', color: '#312527', outline: 'none', boxSizing: 'border-box' }} />
-            <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.75rem', paddingRight: '0.5rem', alignContent: 'start' }}>
+          <div className="collection-panel flex-1 bg-[#D4C4C7] rounded-xl p-6 flex flex-col h-[calc(100vh-200px)] min-h-[600px] shadow-md" style={{ width: '100%' }}>
+            <h3 className="m-0 mb-4 text-[#312527] text-xl font-semibold">Photocards</h3>
+            <p className="m-0 mb-4 text-[#6A585B] text-sm italic">Click or drag cards to add them to the binder.</p>
+            <input
+              className="theme-input w-full px-4 py-3 rounded-lg border-none bg-[#C2B0B4] mb-5 text-[#312527] outline-none box-border"
+              placeholder="Search collection..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            <div className="custom-scroll flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(90px,1fr))] gap-3 pr-2 content-start">
               {merch.filter(m =>
                 (m.customName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (m.memberName || '').toLowerCase().includes(searchQuery.toLowerCase())
               ).map(item => (
-                <div key={item.id} className="merch-picker-item" draggable onClick={() => handleCollectionClick(item.id)} onDragStart={(e) => dragDrop.handleCollectionDragStart(e, item.id)} style={{ borderRadius: '6px', overflow: 'hidden', backgroundColor: '#C2B0B4', aspectRatio: '63/100', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', cursor: 'pointer' }}>
-                  <img src={optimizeUrl(item.imageUrl)} alt={item.customName} draggable="false" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div
+                  key={item.id}
+                  className="merch-picker-item rounded-lg overflow-hidden bg-[#C2B0B4] cursor-pointer shadow"
+                  style={{ aspectRatio: '63/100' }}
+                  draggable
+                  onClick={() => handleCollectionClick(item.id)}
+                  onDragStart={(e) => dragDrop.handleCollectionDragStart(e, item.id)}
+                >
+                  <img src={optimizeUrl(item.imageUrl)} alt={item.customName} draggable="false" className="w-full h-full object-cover" />
                 </div>
               ))}
-              {merch.length === 0 && <p style={{ gridColumn: '1/-1', textAlign: 'center', color: '#6A585B' }}>No items in collection.</p>}
+              {merch.length === 0 && <p className="col-span-full text-center text-[#6A585B]">No items in collection.</p>}
             </div>
           </div>
         )}

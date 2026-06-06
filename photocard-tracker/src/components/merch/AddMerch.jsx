@@ -110,33 +110,28 @@ const pcFinishOptions = [
 export default function AddMerch() {
   const [groups, setGroups] = useState([]);
   const [user, setUser] = useState(undefined); 
-  
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedEra, setSelectedEra] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
   const [selectedMembers, setSelectedMembers] = useState([]); 
   const [groupItem, setGroupItem] = useState(false); 
-  
   const [category, setCategory] = useState('');
   const [photocardType, setPhotocardType] = useState('Album');
   const [photocardFinish, setPhotocardFinish] = useState('Glossy');
-  
   const [customName, setCustomName] = useState('');
   const [releaseDate, setReleaseDate] = useState('');
-  
   const [alertMsg, setAlertMsg] = useState(null);
-
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef(null);
-
   const [backFile, setBackFile] = useState(null);
   const [backPreview, setBackPreview] = useState(null);
   const [backDragging, setBackDragging] = useState(false);
   const backFileInputRef = useRef(null);
-
   const [loading, setLoading] = useState(false);
+  const [reloadOnClose, setReloadOnClose] = useState(false);
+
 
   useEffect(() => {
     const auth = getAuth();
@@ -243,23 +238,28 @@ export default function AddMerch() {
 
       setAlertMsg("Merchandise added!");
       setFile(null); setPreview(null); setBackFile(null); setBackPreview(null);
-      setCustomName(''); setCategory(''); setReleaseDate('');
-      setPhotocardType('Album'); setPhotocardFinish('Matte');
-      setSelectedGroup(''); setSelectedEra(''); setSelectedMember(''); setSelectedMembers([]); setGroupItem(false);
-
-    } catch (error) {
-      console.error("Upload failed:", error);
-      setAlertMsg(`Something went wrong: ${error.message}`);
-    } finally {
+      setCustomName('');
+      setPhotocardType('Album'); setPhotocardFinish('Glossy');
+      } catch (error) {
+        console.error("Upload failed:", error);
+        setReloadOnClose(false);
+        setAlertMsg(`Something went wrong: ${error.message}`);
+      }
       setLoading(false);
-    }
   };
 
   const displayReleaseDate = releaseDate ? `${releaseDate.split('-')[1]}/${releaseDate.split('-')[0]}` : 'MM/YYYY';
 
   return (
     <div style={{ maxWidth: '480px', width: '100%', margin: '2rem auto', padding: '1.5rem', backgroundColor: '#D4C4C7', borderRadius: '12px', boxShadow: '0 2px 8px rgba(49,37,39,0.08)' }}>
-      <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
+      <ThemeAlert message={alertMsg} onClose={() => {
+        setAlertMsg(null);
+        if (reloadOnClose) {
+          setReloadOnClose(false);
+          window.location.reload();
+        }
+      }} />
+
       <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527' }}>Add New Merchandise</h2>
 
       <style>{`
@@ -456,6 +456,15 @@ export default function AddMerch() {
           {loading ? "Processing..." : "Add to Database"}
         </button>
       </form>
+
+      {loading && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(49,37,39,0.55)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: '#E6DADD', padding: '2rem 2.5rem', borderRadius: '12px', border: '1px solid #D4C4C7', textAlign: 'center', boxShadow: '0 4px 16px rgba(49,37,39,0.2)' }}>
+            <p style={{ color: '#312527', fontWeight: '700', fontSize: '1rem', margin: '0 0 0.5rem 0' }}>Uploading Merch...</p>
+            <p style={{ color: '#6A585B', fontSize: '0.85rem', margin: 0 }}>Please wait while your item is being added.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
