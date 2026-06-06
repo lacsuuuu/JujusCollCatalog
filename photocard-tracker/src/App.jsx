@@ -24,8 +24,9 @@ const Collectors = lazy(() => import('./components/user/Collectors.jsx'));
 
 
 
-function NavigationTabs({ user, canEdit, profileData }) {
+function NavigationTabs({ user, canEdit }) {
   const location = useLocation();
+  const { profileData, loading: profileLoading } = useUserProfile(user?.uid);
 
   const isTabActive = (path, isDynamic = false) => {
     if (isDynamic) {
@@ -48,10 +49,12 @@ function NavigationTabs({ user, canEdit, profileData }) {
   return (
     <nav className="nav-container">
       {user && (
-          <Link to={profileData?.username ? `/profile/${profileData.username}` : '/feed'} style={getTabStyle('/profile', true)}>
-            Profile
-          </Link>
-        )}
+        profileLoading
+          ? <span style={{ ...getTabStyle('/profile', true), opacity: 0.4, cursor: 'default' }}>Profile</span>
+          : <Link to={profileData?.username ? `/profile/${profileData.username}` : '/feed'} style={getTabStyle('/profile', true)}>
+              Profile
+            </Link>
+      )}
       <Link to="/collectors" style={getTabStyle('/collectors')}>Community</Link>
       <Link to="/gallery" style={getTabStyle('/gallery')}>Catalog</Link>
       <Link to="/binders" style={getTabStyle('/binders')}>Binders</Link>
@@ -181,7 +184,7 @@ function App() {
           <img src="/J_Header.png" alt="Juju's Coll Catalog" style={{ height: '60px', width: 'auto', objectFit: 'contain' }} />
         </header>
 
-        <NavigationTabs user={user} canEdit={canEdit} profileData={profileData} />
+        <NavigationTabs user={user} canEdit={canEdit} />
 
         <div style={{ width: '100%' }}>
           <Suspense fallback={<div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>Loading...</div>}>

@@ -4,7 +4,7 @@ import { optimizeUrl } from '../../utils/imageKitUtils';
 
 const GROUPS_PER_PAGE = 5;
 
-function GalleryMerchCard({ item, user, onSelect, onStatusChange, onDelete }) {
+function GalleryMerchCard({ item, user, userRole, onSelect, onStatusChange, onDelete }) {
   const isPhotocard = (item.category || '').toLowerCase() === 'photocard';
   const hasBackprint = isPhotocard && item.backImageUrl;
   const fitStyle = isPhotocard ? 'cover' : 'contain';
@@ -56,35 +56,40 @@ function GalleryMerchCard({ item, user, onSelect, onStatusChange, onDelete }) {
         <h4 style={{ margin: '0.1rem 0 0 0', fontSize: '1.1rem', color: '#312527', fontWeight: '700', cursor: 'pointer', lineHeight: '1.2' }} onClick={() => onSelect(item)}>{item.memberName}</h4>
         <p style={{ margin: '0 0 0.4rem 0', color: '#6A585B', fontSize: '0.85rem' }}>{item.groupName}{item.era ? ` • ${item.era}` : ''}</p>
 
-        {user && (
-          <div style={{ width: '100%', marginTop: 'auto', paddingTop: '0.4rem' }}>
-            <CustomSelect
-              value={item.status}
-              onChange={(val) => onStatusChange(item.id, val)}
-              options={[
-                { value: 'unowned', label: 'Unowned' },
-                { value: 'owned', label: 'Owned' },
-                { value: 'on the way', label: 'On the Way' },
-                { value: 'wishlisted', label: 'Wishlist' },
-              ]}
-              placeholder="Status"
-              direction="up"
-              style={{ width: '100%', marginBottom: '0.3rem', fontSize: '0.8rem' }}
-            />
-            <button
-              onClick={() => onDelete(item.id)}
-              style={{ width: '100%', padding: '0.4rem', backgroundColor: 'transparent', color: '#A85A66', border: '1px solid #A85A66', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              Delete
-            </button>
-          </div>
-        )}
+        {user && (() => {
+          const canDelete = userRole === 'admin' || (userRole === 'collaborator' && item.userId === user.uid);
+          return (
+            <div style={{ width: '100%', marginTop: 'auto', paddingTop: '0.4rem' }}>
+              <CustomSelect
+                value={item.status}
+                onChange={(val) => onStatusChange(item.id, val)}
+                options={[
+                  { value: 'unowned', label: 'Unowned' },
+                  { value: 'owned', label: 'Owned' },
+                  { value: 'on the way', label: 'On the Way' },
+                  { value: 'wishlisted', label: 'Wishlist' },
+                ]}
+                placeholder="Status"
+                direction="up"
+                style={{ width: '100%', marginBottom: '0.3rem', fontSize: '0.8rem' }}
+              />
+              {canDelete && (
+                <button
+                  onClick={() => onDelete(item.id)}
+                  style={{ width: '100%', padding: '0.4rem', backgroundColor: 'transparent', color: '#A85A66', border: '1px solid #A85A66', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
 }
 
-function GalleryGrid({ items, user, onSelect, onStatusChange, onDelete }) {
+function GalleryGrid({ items, user, userRole, onSelect, onStatusChange, onDelete }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.2rem' }}>
       {items.map(item => (
@@ -92,6 +97,7 @@ function GalleryGrid({ items, user, onSelect, onStatusChange, onDelete }) {
           key={item.id}
           item={item}
           user={user}
+          userRole={userRole}
           onSelect={onSelect}
           onStatusChange={onStatusChange}
           onDelete={onDelete}
@@ -104,6 +110,7 @@ function GalleryGrid({ items, user, onSelect, onStatusChange, onDelete }) {
 export default function GalleryMerchGrid({
   items,
   user,
+  userRole,
   groupBy,
   setGroupBy,
   currentGroup,
@@ -270,6 +277,7 @@ export default function GalleryMerchGrid({
                       <GalleryGrid
                         items={block.items}
                         user={user}
+                        userRole={userRole}
                         onSelect={onSelectItem}
                         onStatusChange={onStatusChange}
                         onDelete={onDelete}

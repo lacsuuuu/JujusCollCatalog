@@ -7,7 +7,8 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithCredential
 } from 'firebase/auth';
 import { doc, getDoc, writeBatch, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
@@ -493,14 +494,42 @@ export default function Login() {
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      const profileSnap = await getDoc(doc(db, 'profile', result.user.uid));
-      if (profileSnap.exists() && profileSnap.data().username) {
-        navigate(`/profile/${profileSnap.data().username}`);
+
+      // Store pending user data before any async Firestore call,
+      // so we have it available even if the read fails for a new account.
+      const pendingUser = {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        credential: GoogleAuthProvider.credentialFromResult(result),
+      };
+
+      let hasProfile = false;
+      let profileUsername = null;
+      try {
+        const profileSnap = await getDoc(doc(db, 'profile', result.user.uid));
+        if (profileSnap.exists() && profileSnap.data().username) {
+          hasProfile = true;
+          profileUsername = profileSnap.data().username;
+        }
+      } catch (firestoreError) {
+        // A permissions error here means the profile doesn't exist yet
+        // (Firestore rules deny reads for documents that don't belong to the user).
+        // Treat this the same as "no profile found" and proceed to setup.
+        if (firestoreError.code !== 'permission-denied') {
+          throw firestoreError; // re-throw unexpected errors
+        }
+      }
+
+      if (hasProfile) {
+        navigate(`/profile/${profileUsername}`);
       } else {
-        setGoogleUser(result.user);
+        // No profile yet — go to setup. Keep the user signed in so Firestore writes succeed.
+        setGoogleUser(pendingUser);
         setMode('google-setup');
       }
     } catch (error) {
+      if (error.code === 'auth/popup-closed-by-user') return;
       setAlertMsg(error.message);
     }
   };
@@ -515,7 +544,7 @@ export default function Login() {
       const batch = writeBatch(db);
       batch.set(doc(db, 'usernames', username.toLowerCase()), { uid: googleUser.uid, email: googleUser.email });
       batch.set(doc(db, 'profile', googleUser.uid), {
-        username, name: googleUser.displayName || username,
+        username, name: googleUser.displayName || username, displayName: googleUser.displayName || username,
         email: googleUser.email,
         role: accountType === 'collaborator' ? 'pending_collaborator' : 'user',
         createdAt: new Date()
@@ -539,7 +568,7 @@ export default function Login() {
   };
 
   // ── Logged-in state ──────────────────────────────────────────────────────
-  if (currentUser && mode !== 'google-setup') {
+  if (currentUser && mode !== 'google-setup' && !googleUser) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem', color: '#312527' }}>
         <style>{LOGIN_STYLES}</style>
