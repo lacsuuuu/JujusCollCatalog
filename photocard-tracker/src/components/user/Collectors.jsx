@@ -101,7 +101,7 @@ export default function Collectors() {
                 decoding="async"
                 style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '1rem', border: '3px solid #E6DADD' }}
               />
-              <h3 style={{ margin: '0 0 0.25rem 0', color: '#312527', fontSize: '1rem', fontWeight: '700' }}>{c.name || c.username || 'Collector'}</h3>
+              <h3 style={{ margin: '0 0 0.25rem 0', color: '#312527', fontSize: '1rem', fontWeight: '700' }}>{c.displayName || c.username || 'Collector'}</h3>
               {c.username && (
                 <p style={{ margin: 0, color: '#8D6E73', fontSize: '0.82rem', fontWeight: '500' }}>
                   @{c.username}
