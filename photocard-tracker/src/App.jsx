@@ -22,8 +22,6 @@ const MemberPage = lazy(() => import('./components/groups/MemberPage.jsx'));
 const Binders = lazy(() => import('./components/merch/Binders.jsx'));
 const Collectors = lazy(() => import('./components/user/Collectors.jsx'));
 
-
-
 function NavigationTabs({ user, canEdit }) {
   const location = useLocation();
   const { profileData, loading: profileLoading } = useUserProfile(user?.uid);
@@ -90,95 +88,7 @@ function App() {
   return (
     <AuthProvider>
     <Router>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
-
-        *, *::before, *::after {
-          box-sizing: border-box !important;
-          font-family: 'Quicksand', sans-serif !important;
-        }
-        html, body, #root {
-          margin: 0 !important;
-          padding: 0 !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          min-height: 100vh !important;
-          overflow-x: hidden !important;
-          overflow-y: auto !important;
-          background-color: #E6DADD !important;
-          color: #312527 !important;
-          font-family: 'Quicksand', sans-serif !important;
-          border: none !important;
-          box-shadow: none !important;
-          outline: none !important;
-        }
-        ::placeholder {
-          color: #6A585B !important;
-          opacity: 0.7 !important;
-        }
-        select option {
-          font-family: 'Quicksand', sans-serif !important;
-        }
-
-        .nav-container {
-          display: flex;
-          justify-content: flex-start;
-          align-items: center;
-          flex-wrap: nowrap;
-          gap: 2.5rem;
-          width: 100%;
-          border-bottom: 1px solid #D4C4C7;
-          margin-bottom: 2rem;
-          overflow-x: auto; 
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        
-        .nav-container::-webkit-scrollbar {
-          display: none; 
-        }
-
-        .nav-container > * {
-          flex: 0 0 auto; 
-        }
-
-        .admin-link {
-          margin-left: auto;
-        }
-
-        @media (max-width: 600px) {
-          .nav-container {
-            gap: 1.5rem; 
-            padding-bottom: 2px;
-          }
-          
-          .admin-link {
-             margin-left: 0; 
-          }
-            
-          .nav-container::after {
-             content: '';
-             padding-right: 1rem;
-          }
-        } 
-        
-        select {
-          appearance: none !important;
-          background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23312527' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
-          background-repeat: no-repeat !important;
-          background-position: right 0.75rem center !important;
-          background-size: 1em !important;
-          padding-right: 2rem !important;
-        }
-        
-        button:hover {
-          filter: brightness(0.9);
-          transition: filter 0.2s;
-        }
-      `}</style>
-
-      <main style={{ width: '100%', maxWidth: '1000px', margin: '0 auto', padding: '2rem 1rem 5rem 1rem' }}>
+      <main style={{ width: '100%', maxWidth: '1000px', margin: '0 auto', padding: '2rem 1rem 5rem 1rem'}}>
 
         <header style={{ display: 'flex', alignItems: 'center'}}>
           <img src="/J_Header.png" alt="Juju's Coll Catalog" style={{ height: '60px', width: 'auto', objectFit: 'contain' }} />
@@ -220,7 +130,7 @@ function App() {
           </Suspense>
         </div>
       </main>
-      <Footer user={user} />
+      <Footer user={user}/>
     </Router>
     </AuthProvider>
   );

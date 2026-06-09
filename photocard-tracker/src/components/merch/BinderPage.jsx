@@ -8,22 +8,6 @@ import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
 import { optimizeUrl } from '../../utils/imageKitUtils';
 import ThemeAlert from '../ui/ThemeAlert';
 
-// index.css — add inside @theme and global scope:
-//
-// @keyframes flipForward {
-//   0%   { transform: rotateY(0deg); }
-//   100% { transform: rotateY(-180deg); }
-// }
-// @keyframes flipBack {
-//   0%   { transform: rotateY(0deg); }
-//   100% { transform: rotateY(180deg); }
-// }
-//
-// @theme {
-//   --animate-flip-forward: flipForward 0.7s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
-//   --animate-flip-back:    flipBack    0.7s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
-// }
-
 // Preloads an array of image URLs, resolves when all are loaded or timeout hits
 const preloadImages = (urls, timeoutMs = 800) => {
   const filtered = urls.filter(Boolean);
@@ -38,40 +22,6 @@ const preloadImages = (urls, timeoutMs = 800) => {
     new Promise(resolve => setTimeout(resolve, timeoutMs)),
   ]);
 };
-
-const SLOT_STYLES = `
-  .slot-container {
-    aspect-ratio: 63 / 100;
-    border-radius: 8px;
-    overflow: hidden;
-    background-color: rgba(255,255,255,0.4);
-    border: 2px dashed #A08D90;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    transition: all 0.2s;
-  }
-  .slot-container.filled { border: 2px solid transparent; background-color: transparent; }
-  .slot-container.editable { cursor: grab; }
-  .slot-container.dragging-over { border: 2px solid #8D6E73; background-color: rgba(141,110,115,0.15); transform: scale(1.03); }
-  .slot-remove-btn {
-    position: absolute; top: 4px; right: 4px;
-    background-color: rgba(49,37,39,0.7); border: none; border-radius: 50%;
-    width: 24px; height: 24px; cursor: pointer;
-    display: flex; justify-content: center; align-items: center;
-    opacity: 0; transition: opacity 0.2s; padding: 0;
-  }
-  .slot-container:hover .slot-remove-btn { opacity: 1; }
-  .merch-picker-item { transition: transform 0.2s; cursor: pointer; }
-  .merch-picker-item:hover { transform: scale(1.05); z-index: 5; }
-  .custom-scroll::-webkit-scrollbar { width: 8px; }
-  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-  .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
-  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
-  .theme-input { transition: box-shadow 0.2s ease; outline: none; }
-  .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
-`;
 
 export default function BinderPage({ user }) {
   const { binderId } = useParams();
@@ -140,32 +90,26 @@ export default function BinderPage({ user }) {
     if (newPage === currentPage || isFlipping) return;
     const dir = newPage > currentPage ? 'forward' : 'back';
 
-    // Collect all images that will appear during the flip:
-    // - back face of the leaf (what's revealed mid-flip)
-    // - destination spread (visible underneath)
     const destLeftPage  = dir === 'forward' ? currentPage  : newPage - 1;
     const destRightPage = newPage;
 
     const urlsToPreload = [];
     for (let i = 0; i < binder.type; i++) {
-      // Leaf back face
       const leafBackId = dir === 'forward'
-        ? binder.slots?.[`${currentPage}-${i}`]   // back of current page (showBack)
-        : binder.slots?.[`${newPage}-${i}`];       // front of destination page
+        ? binder.slots?.[`${currentPage}-${i}`]   
+        : binder.slots?.[`${newPage}-${i}`];       
       const leafBackCard = leafBackId ? merch.find(m => m.id === leafBackId) : null;
       if (leafBackCard) {
         if (dir === 'forward' && leafBackCard.backImageUrl) urlsToPreload.push(optimizeUrl(leafBackCard.backImageUrl));
         if (dir === 'back') urlsToPreload.push(optimizeUrl(leafBackCard.imageUrl));
       }
 
-      // Destination left (back images)
       if (destLeftPage >= 0) {
         const leftId = binder.slots?.[`${destLeftPage}-${i}`];
         const leftCard = leftId ? merch.find(m => m.id === leftId) : null;
         if (leftCard?.backImageUrl) urlsToPreload.push(optimizeUrl(leftCard.backImageUrl));
       }
 
-      // Destination right (front images)
       const rightId = binder.slots?.[`${destRightPage}-${i}`];
       const rightCard = rightId ? merch.find(m => m.id === rightId) : null;
       if (rightCard) urlsToPreload.push(optimizeUrl(rightCard.imageUrl));
@@ -270,9 +214,6 @@ export default function BinderPage({ user }) {
     });
   };
 
-  // ── Card grid renderer ───────────────────────────────────
-  // showBack: show backImageUrl instead of front
-  // interactive: enable drag/drop + remove buttons (right page only)
   const renderGrid = (page, { showBack = false, interactive = false } = {}) => {
     const cols = binder.type === 4 ? 'grid-cols-2' : 'grid-cols-3';
     return (
@@ -315,7 +256,6 @@ export default function BinderPage({ user }) {
     );
   };
 
-  // ── Loading / error states ───────────────────────────────
   if (pageLoading) return <div className="text-center text-[#6A585B] py-16">Loading binder...</div>;
 
   if (notFound) return (
@@ -339,12 +279,9 @@ export default function BinderPage({ user }) {
     </div>
   );
 
-  // ── Spread logic ─────────────────────────────────────────
-  // currentPage is the right (front) page; currentPage-1 is the left (back) page
-  const leftPage = currentPage - 1;   // -1 = no left page (cover)
+  const leftPage = currentPage - 1;   
   const rightPage = currentPage;
 
-  // During flip, the destination spread sits underneath the animated leaf
   const destLeft  = pendingPage !== null ? (flipDir === 'forward' ? currentPage      : pendingPage - 1) : null;
   const destRight = pendingPage !== null ? (flipDir === 'forward' ? pendingPage       : pendingPage)    : null;
 
@@ -352,10 +289,8 @@ export default function BinderPage({ user }) {
 
   return (
     <div className="w-full animate-[fadeIn_0.3s]">
-      <style>{SLOT_STYLES}</style>
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
 
-      {/* Confirm modal */}
       {confirmAction && (
         <div className="fixed inset-0 bg-[rgba(49,37,39,0.6)] flex justify-center items-center z-[9999]">
           <div className="bg-[#E6DADD] p-6 rounded-xl text-center max-w-xs w-[90%]">
@@ -368,7 +303,6 @@ export default function BinderPage({ user }) {
         </div>
       )}
 
-      {/* Header */}
       <div className="w-full flex justify-between items-center mb-8 flex-wrap gap-4">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-[#6A585B] font-bold bg-transparent border-none cursor-pointer p-0">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
@@ -430,11 +364,9 @@ export default function BinderPage({ user }) {
         </div>
       </div>
 
-      {/* Binder content */}
       <div className={`flex gap-6 items-start ${isEditing ? 'justify-start' : 'justify-center'}`}>
         <div className={`flex flex-col items-center w-full ${spreadMaxW} ${isEditing ? '' : 'mx-auto'}`}>
 
-          {/* Page controls */}
           <div className="flex items-center justify-center relative min-w-[280px] mb-6 bg-[#D4C4C7] px-6 py-2 rounded-full">
             <div className="flex items-center gap-6">
               <button
@@ -468,7 +400,6 @@ export default function BinderPage({ user }) {
             )}
           </div>
 
-          {/* ── Book spread ── */}
           <div
             className="relative flex w-full rounded-xl"
             style={{
@@ -476,20 +407,16 @@ export default function BinderPage({ user }) {
               perspective: '2000px',
             }}
           >
-            {/* Base layer: destination spread (under the leaf while flipping) or current spread */}
             {isFlipping ? (
               <>
-                {/* Destination left — back of currentPage (the page just turned) */}
                 <div className="flex-1 bg-[#F9F6F0] p-5 rounded-l-xl border-l-[12px] border-[#C2B0B4] border-r border-r-[#D4C4C7] box-border"
                   style={{ boxShadow: '-4px 0 12px rgba(49,37,39,0.08)' }}>
                   {destLeft !== null && destLeft >= 0
                     ? renderGrid(destLeft, { showBack: true })
                     : null}
                 </div>
-                {/* Spine */}
                 <div className="w-2.5 flex-shrink-0 self-stretch"
                   style={{ background: 'linear-gradient(to right, rgba(49,37,39,0.12), rgba(49,37,39,0.04), rgba(49,37,39,0.12))' }} />
-                {/* Destination right */}
                 <div className="flex-1 bg-[#F9F6F0] p-5 rounded-r-xl border-r-0 box-border"
                   style={{ boxShadow: '4px 0 18px rgba(49,37,39,0.15), inset -8px 0 16px rgba(49,37,39,0.06)' }}>
                   {destRight !== null ? renderGrid(destRight, { interactive: false }) : null}
@@ -497,15 +424,12 @@ export default function BinderPage({ user }) {
               </>
             ) : (
               <>
-                {/* Current left — back of previous page */}
                 <div className={`flex-1 bg-[#F9F6F0] p-5 rounded-l-xl border-l-[12px] border-[#C2B0B4] border-r border-r-[#D4C4C7] box-border ${leftPage < 0 ? 'invisible' : ''}`}
                   style={{ boxShadow: '-4px 0 12px rgba(49,37,39,0.08)' }}>
                   {leftPage >= 0 ? renderGrid(leftPage, { showBack: true }) : null}
                 </div>
-                {/* Spine */}
                 <div className="w-2.5 flex-shrink-0 self-stretch"
                   style={{ background: 'linear-gradient(to right, rgba(49,37,39,0.12), rgba(49,37,39,0.04), rgba(49,37,39,0.12))' }} />
-                {/* Current right */}
                 <div className="flex-1 bg-[#F9F6F0] p-5 rounded-r-xl box-border"
                   style={{ boxShadow: '4px 0 18px rgba(49,37,39,0.15), inset -8px 0 16px rgba(49,37,39,0.06)' }}>
                   {renderGrid(rightPage, { interactive: true })}
@@ -513,21 +437,15 @@ export default function BinderPage({ user }) {
               </>
             )}
 
-            {/* Turning leaf — animates over the base layer */}
             {isFlipping && (
               <div
                 className={`absolute top-0 h-full w-1/2 ${flipDir === 'forward' ? 'right-0 animate-flip-forward' : 'left-0 animate-flip-back'}`}
                 style={{
                   transformStyle: 'preserve-3d',
-                  // Origin stays on the spine side so the page hinges correctly.
-                  // The "swing out from outer edge" feel comes from the easing curve
-                  // (slow start = page peels up) rather than changing transform-origin mid-flight,
-                  // which would cause a visual jump.
                   transformOrigin: flipDir === 'forward' ? 'left center' : 'right center',
                   zIndex: 10,
                 }}
               >
-                {/* Front face: the page being lifted away */}
                 <div
                   className="absolute inset-0 bg-[#F9F6F0] p-5 overflow-hidden box-border"
                   style={{
@@ -540,12 +458,11 @@ export default function BinderPage({ user }) {
                   }}
                 >
                   {flipDir === 'forward'
-                    ? renderGrid(rightPage, { interactive: false })        // front of current right page lifts away
-                    : renderGrid(leftPage, { showBack: true })             // back of current left page lifts away
+                    ? renderGrid(rightPage, { interactive: false })        
+                    : renderGrid(leftPage, { showBack: true })             
                   }
                 </div>
 
-                {/* Back face: revealed as leaf crosses 90° */}
                 <div
                   className="absolute inset-0 bg-[#F9F6F0] p-5 overflow-hidden box-border"
                   style={{
@@ -559,15 +476,14 @@ export default function BinderPage({ user }) {
                   }}
                 >
                   {flipDir === 'forward'
-                    ? renderGrid(currentPage, { showBack: true })          // back of the just-turned page becomes new left
-                    : renderGrid(pendingPage, { interactive: false })      // front of destination page becomes new right
+                    ? renderGrid(currentPage, { showBack: true })          
+                    : renderGrid(pendingPage, { interactive: false })      
                   }
                 </div>
               </div>
             )}
           </div>
 
-          {/* Bottom page controls (owner only) */}
           {isEditing && canEdit && (
             <div className="flex gap-4 mt-6 w-full justify-center">
               {computedTotalPages > 1 && (
@@ -594,7 +510,6 @@ export default function BinderPage({ user }) {
           )}
         </div>
 
-        {/* Collection sidebar (owner edit mode only) */}
         {isEditing && canEdit && (
           <div className="collection-panel flex-1 bg-[#D4C4C7] rounded-xl p-6 flex flex-col h-[calc(100vh-200px)] min-h-[600px] shadow-md" style={{ width: '100%' }}>
             <h3 className="m-0 mb-4 text-[#312527] text-xl font-semibold">Photocards</h3>

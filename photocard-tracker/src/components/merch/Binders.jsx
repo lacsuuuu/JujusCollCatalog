@@ -7,64 +7,6 @@ import { useBinderDragDrop } from '../../hooks/useBinderDragDrop';
 import ThemeAlert from '../ui/ThemeAlert';
 import { optimizeUrl } from '../../utils/imageKitUtils';
 
-const BINDER_STYLES = `
-  .theme-input { transition: box-shadow 0.2s ease; outline: none; }
-  .theme-input:focus { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #8D6E73 !important; }
-
-  .binder-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
-  .binder-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(49,37,39,0.15) !important; }
-
-  .slot-container {
-    aspect-ratio: 63 / 100;
-    border-radius: 8px;
-    overflow: hidden;
-    background-color: rgba(255,255,255,0.4);
-    border: 2px dashed #A08D90;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    transition: all 0.2s;
-  }
-  .slot-container.filled { border: 2px solid transparent; background-color: transparent; }
-  .slot-container.editable { cursor: grab; }
-  .slot-container.dragging-over { border: 2px solid #8D6E73; background-color: rgba(141,110,115,0.15); transform: scale(1.03); }
-
-  .slot-remove-btn {
-    position: absolute; top: 4px; right: 4px;
-    background-color: rgba(49,37,39,0.7); border: none; border-radius: 50%;
-    width: 24px; height: 24px; cursor: pointer;
-    display: flex; justify-content: center; align-items: center;
-    opacity: 0; transition: opacity 0.2s, filter 0.2s, transform 0.2s;
-    padding: 0; line-height: 0;
-  }
-  .slot-container:hover .slot-remove-btn { opacity: 1; }
-  .slot-remove-btn:hover { filter: brightness(0.8); transform: scale(1.05); }
-
-  .merch-picker-item { transition: transform 0.2s; cursor: pointer; }
-  .merch-picker-item:hover { transform: scale(1.05); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-
-  .public-toggle {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.3rem 0.75rem; border-radius: 20px; cursor: pointer;
-    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em;
-    text-transform: uppercase; border: none; transition: all 0.2s;
-  }
-  .public-toggle.is-public { background-color: rgba(141,110,115,0.2); color: #8D6E73; }
-  .public-toggle.is-private { background-color: rgba(49,37,39,0.08); color: '#A08D90'; }
-  .public-toggle:hover { filter: brightness(0.9); }
-
-  .custom-scroll::-webkit-scrollbar { width: 8px; }
-  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-  .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
-  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
-
-  @media (max-width: 900px) {
-    .binder-layout { flex-direction: column !important; }
-    .collection-panel { width: 100% !important; max-height: 400px !important; }
-  }
-`;
-
 export default function Binders({ user }) {
   const navigate = useNavigate();
   const { binders, loading, createBinder, deleteBinder, updateBinder, removeSlotsBatch, togglePublic } = useBinders(user);
@@ -244,7 +186,6 @@ export default function Binders({ user }) {
   if (!user) {
     return (
       <div style={{ width: '100%' }}>
-        <style>{BINDER_STYLES}</style>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', textAlign: 'center', gap: '1.5rem' }}>
           <div style={{ width: '80px', height: '80px', backgroundColor: '#D4C4C7', borderRadius: '12px', borderLeft: '10px solid #C2B0B4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -267,7 +208,6 @@ export default function Binders({ user }) {
 
   return (
     <div style={{ width: '100%', animation: 'fadeIn 0.3s' }}>
-      <style>{BINDER_STYLES}</style>
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
 
       {/* Confirm modal */}

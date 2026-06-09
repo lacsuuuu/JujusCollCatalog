@@ -26,63 +26,6 @@ const CheckIcon = ({ size = 32 }) => (
   </svg>
 );
 
-const MODAL_STYLES = `
-  .feedback-overlay {
-    position: fixed; inset: 0;
-    background: rgba(49, 37, 39, 0.7);
-    backdrop-filter: blur(4px);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 99999; padding: 1rem;
-  }
-  .feedback-card {
-    background: #E6DADD;
-    border-radius: 16px;
-    padding: 2rem;
-    width: 100%; max-width: 460px;
-    box-shadow: 0 20px 60px rgba(49, 37, 39, 0.25);
-    position: relative;
-  }
-  .feedback-type-btn {
-    flex: 1; padding: 0.6rem 1rem;
-    border-radius: 8px; border: 1.5px solid #C2B0B4;
-    background: transparent; color: #6A585B;
-    font-weight: 600; font-size: 0.85rem;
-    cursor: pointer; transition: all 0.2s;
-    font-family: inherit;
-    display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-  }
-  .feedback-type-btn.active {
-    background: #8D6E73; border-color: #8D6E73; color: #fff;
-  }
-  .feedback-textarea {
-    width: 100%; padding: 0.8rem 1rem;
-    border-radius: 8px; border: 1.5px solid #D4C4C7;
-    background: #fff; color: #312527;
-    font-size: 0.9rem; font-family: inherit;
-    resize: none; outline: none; box-sizing: border-box;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    line-height: 1.5;
-  }
-  .feedback-textarea:focus {
-    border-color: #8D6E73;
-    box-shadow: 0 0 0 3px rgba(141, 110, 115, 0.15);
-  }
-  .feedback-submit {
-    width: 100%; padding: 0.75rem;
-    background: #8D6E73; color: #fff;
-    border: none; border-radius: 8px;
-    font-weight: 700; font-size: 0.9rem;
-    cursor: pointer; font-family: inherit;
-    transition: background 0.2s;
-  }
-  .feedback-submit:disabled {
-    background: #C2B0B4; cursor: not-allowed;
-  }
-  .feedback-submit:not(:disabled):hover {
-    background: #7A5F64;
-  }
-`;
-
 export default function FeedbackModal({ onClose, user }) {
   const [type, setType] = useState('bug');
   const [message, setMessage] = useState('');
@@ -135,7 +78,6 @@ export default function FeedbackModal({ onClose, user }) {
 
   return (
     <div className="feedback-overlay" onClick={onClose}>
-      <style>{MODAL_STYLES}</style>
       <div className="feedback-card" onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}

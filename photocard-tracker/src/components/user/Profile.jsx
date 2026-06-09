@@ -13,41 +13,8 @@ import { auth, db } from '../../firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
-const PROFILE_STYLES = `
-  .merch-card { transition: transform 0.2s ease, box-shadow 0.2s ease !important; }
-  .merch-card:hover { transform: translateY(-6px); box-shadow: 0 8px 16px rgba(49, 37, 39, 0.15) !important; z-index: 10; }
-  .flip-container { perspective: 1000px; width: 100%; height: 100%; cursor: pointer; aspect-ratio: 63 / 100; }
-  .flipper { transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1); transform-style: preserve-3d; position: relative; width: 100%; height: 100%; }
-  .flip-container:hover .flipper { transform: rotateY(180deg); }
-  .front, .back { backface-visibility: hidden; position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
-  .back { transform: rotateY(180deg); }
-  .custom-scroll::-webkit-scrollbar { width: 8px; }
-  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-  .custom-scroll::-webkit-scrollbar-thumb { background: #C2B0B4; border-radius: 4px; }
-  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #8D6E73; }
-  .theme-input { transition: box-shadow 0.2s ease; }
-  .theme-input:focus, .theme-date-picker:focus-within { box-shadow: 0 0 0 2px #E6DADD, 0 0 0 4px #8D6E73 !important; outline: none; }
-  input[type="month"]::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
-
-  @media (max-width: 768px) {
-    .profile-banner-container { height: 150px !important; margin-bottom: 3.5rem !important; }
-    .profile-avatar-container { width: 100px !important; height: 100px !important; bottom: -50px !important; left: 50% !important; transform: translateX(-50%); }
-    .profile-info { text-align: center !important; }
-    .profile-title { padding-right: 0 !important; text-align: center !important; }
-    .edit-profile-form { margin: 0 auto !important; }
-    .filter-bar { flex-direction: column; gap: 0.5rem !important; padding: 1rem !important; }
-    .filter-bar > * { width: 100% !important; }
-    .adv-filters { flex-direction: column; }
-    .adv-filters > * { width: 100%; }
-    .gallery-header { display: flex !important; flex-direction: row !important; justify-content: space-between !important; align-items: center !important; }
-    .left-spacer { display: none !important; }
-    .gallery-title { text-align: left !important; font-size: 1.1rem !important; margin: 0 !important; }
-    .merch-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important; }
-  }
-`;
-
 export default function Profile({ user }) {
-  const { username } = useParams(); // Now grabbing username from the URL
+  const { username } = useParams(); 
   const navigate = useNavigate();
 
   const [targetUserId, setTargetUserId] = useState(null);
@@ -153,7 +120,6 @@ export default function Profile({ user }) {
   const wishlistCollection = filteredMerch.filter(i => i.status === 'wishlisted');
  
   const handlePasswordReset = async () => {
-    // We get the email directly from the authenticated user object
     if (!user?.email) return setAlertMsg("No email found for this user.");
     
     try {
@@ -163,12 +129,12 @@ export default function Profile({ user }) {
       setAlertMsg('Error: ' + error.message);
     }
   };
+
   const handleSaveProfile = async () => {
     const oldUsername = profileData.username;
     const ok = await saveProfile(editForm);
     if (ok) {
       setIsEditing(false);
-      // Redirect to the new URL if they changed their username!
       if (editForm.username && editForm.username !== oldUsername) {
         navigate(`/profile/${editForm.username}`);
       }
@@ -180,7 +146,6 @@ export default function Profile({ user }) {
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem', textAlign: 'left' }}>
-      <style>{PROFILE_STYLES}</style>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
         <UserSearch />
@@ -261,7 +226,7 @@ export default function Profile({ user }) {
         )}
       </div>
 
-      {/* Public binders section — shows above the merch collection */}
+      {/* Public binders section */}
       <ProfileBinders userId={targetUserId} globalMerch={globalMerch} />
 
       <ProfileFilters
