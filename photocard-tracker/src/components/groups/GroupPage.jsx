@@ -242,7 +242,7 @@ export default function GroupPage() {
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} hideButton={alertMsg === "Uploading and saving..."} />
 
       <button
-        onClick={() => navigate('/groups')}
+        onClick={() => navigate('/idols')}
         style={{ background: 'none', border: 'none', color: '#6A585B', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', outline: 'none', padding: 0, transition: 'color 0.2s' }}
         onMouseOver={e => e.currentTarget.style.color = '#312527'}
         onMouseOut={e => e.currentTarget.style.color = '#6A585B'}
@@ -250,7 +250,7 @@ export default function GroupPage() {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
-        Back to Groups
+        Back to Idols
       </button>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

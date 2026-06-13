@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
-import { collection, query, orderBy, limit, getDocs, startAfter, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+// Added 'where' to the imports
+import { collection, query, orderBy, limit, getDocs, startAfter, doc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 import { deleteCloudinaryImage, compressAndUpload, optimizeUrl } from '../../utils/cloudinaryUtils';
 import { Link } from 'react-router-dom';
@@ -13,7 +14,8 @@ const arrowStyle = {
   transition: 'background 0.2s', zIndex: 10
 };
 
-export default function Feed({ user }) {
+// Added userId to the destructured props
+export default function Feed({ user, userId }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -33,9 +35,7 @@ export default function Feed({ user }) {
   const [editPhotoIndex, setEditPhotoIndex] = useState(0);
   const [isDraggingEdit, setIsDraggingEdit] = useState(false);
 
-  // Replaces the __CONFIRM_DELETE__ string hack
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-
   const fileInputRef = useRef(null);
 
   const fetchPosts = async (isInitial = false) => {
@@ -43,10 +43,22 @@ export default function Feed({ user }) {
     setLoading(true);
     
     try {
-      let q = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(BATCH_SIZE));
-      
-      if (!isInitial && lastVisibleDoc) {
-        q = query(collection(db, "posts"), orderBy("timestamp", "desc"), startAfter(lastVisibleDoc), limit(BATCH_SIZE));
+      let q;
+      const postsRef = collection(db, "posts");
+
+      // Conditionally build the query based on whether we are viewing a specific profile
+      if (userId) {
+        if (!isInitial && lastVisibleDoc) {
+          q = query(postsRef, where("userId", "==", userId), orderBy("timestamp", "desc"), startAfter(lastVisibleDoc), limit(BATCH_SIZE));
+        } else {
+          q = query(postsRef, where("userId", "==", userId), orderBy("timestamp", "desc"), limit(BATCH_SIZE));
+        }
+      } else {
+        if (!isInitial && lastVisibleDoc) {
+          q = query(postsRef, orderBy("timestamp", "desc"), startAfter(lastVisibleDoc), limit(BATCH_SIZE));
+        } else {
+          q = query(postsRef, orderBy("timestamp", "desc"), limit(BATCH_SIZE));
+        }
       }
 
       const snapshot = await getDocs(q);
@@ -58,27 +70,29 @@ export default function Feed({ user }) {
         setPosts(prev => [...prev, ...fetchedPosts]);
       }
 
-      // Update the cursor to the last document in the current batch
       const lastDoc = snapshot.docs[snapshot.docs.length - 1];
       setLastVisibleDoc(lastDoc || null);
-      
-      // If we got fewer posts than the batch size, we've reached the end
       setHasMore(snapshot.docs.length === BATCH_SIZE);
       
     } catch (error) {
       console.error("Error fetching feed:", error);
-      setAlertMsg("Error loading posts.");
+      // Helpful alert for the index issue mentioned above
+      if (error.message.includes("index")) {
+        setAlertMsg("Database index building. Please check the console for the link or wait a few minutes.");
+      } else {
+        setAlertMsg("Error loading posts.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch initial posts on mount
+  // Ensure userId is in the dependency array so it refetches when the profile changes
   useEffect(() => {
-  if (user) {
-    fetchPosts(true);
-  }
-}, [user]); // Add user as a dependency
+    if (user || userId) {
+      fetchPosts(true);
+    }
+  }, [user, userId]);
 
   const fetchMorePosts = () => {
     fetchPosts(false);
@@ -337,9 +351,12 @@ export default function Feed({ user }) {
         </div>
       )}
 
-      <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527', paddingBottom: '0.5rem', borderBottom: '1px solid #C2B0B4' }}>
-        Collection Diary
-      </h2>
+      {/* Only display the 'Collection Diary' header if it's the main feed (no userId passed) */}
+      {!userId && (
+        <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527', paddingBottom: '0.5rem', borderBottom: '1px solid #C2B0B4' }}>
+          Collection Diary
+        </h2>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
         {posts.map(post => {

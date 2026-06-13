@@ -131,6 +131,7 @@ export default function AddMerch() {
   const backFileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [reloadOnClose, setReloadOnClose] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
 
   useEffect(() => {
@@ -238,8 +239,9 @@ export default function AddMerch() {
 
       setAlertMsg("Merchandise added!");
       setFile(null); setPreview(null); setBackFile(null); setBackPreview(null);
-      setCustomName('');
+      setCustomName(''); setSelectedGroup(''); setSelectedEra(''); setSelectedMember(''); setSelectedMembers([]); setGroupItem(false); setCategory(''); setReleaseDate('');
       setPhotocardType('Album'); setPhotocardFinish('Glossy');
+      setPanelOpen(false);
       } catch (error) {
         console.error("Upload failed:", error);
         setReloadOnClose(false);
@@ -251,7 +253,7 @@ export default function AddMerch() {
   const displayReleaseDate = releaseDate ? `${releaseDate.split('-')[1]}/${releaseDate.split('-')[0]}` : 'MM/YYYY';
 
   return (
-    <div style={{ maxWidth: '480px', width: '100%', margin: '2rem auto', padding: '1.5rem', backgroundColor: '#D4C4C7', borderRadius: '12px', boxShadow: '0 2px 8px rgba(49,37,39,0.08)' }}>
+    <div style={{ maxWidth: '480px', width: '100%', margin: '1.5rem auto' }}>
       <ThemeAlert message={alertMsg} onClose={() => {
         setAlertMsg(null);
         if (reloadOnClose) {
@@ -260,7 +262,50 @@ export default function AddMerch() {
         }
       }} />
 
-      <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527' }}>Add New Merchandise</h2>
+      {/* Trigger button — collapsed state */}
+      <button
+        onClick={() => setPanelOpen(o => !o)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '0.55rem 1.1rem',
+          background: panelOpen ? '#8D6E73' : 'transparent',
+          color: panelOpen ? '#fff' : '#8D6E73',
+          border: '1.5px solid #8D6E73',
+          borderRadius: panelOpen ? '10px 10px 0 0' : '10px',
+          cursor: 'pointer',
+          fontWeight: '600',
+          fontSize: '0.85rem',
+          letterSpacing: '0.02em',
+          transition: 'all 0.2s ease',
+          width: '100%',
+          justifyContent: 'space-between',
+          borderBottom: panelOpen ? '1.5px solid transparent' : '1.5px solid #8D6E73',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add merchandise
+        </span>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: 'transform 0.2s ease', transform: panelOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        >
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {/* Collapsible form panel */}
+      <div style={{
+        overflow: 'hidden',
+        maxHeight: panelOpen ? '1200px' : '0',
+        transition: 'max-height 0.35s ease',
+        borderRadius: '0 0 10px 10px',
+        border: panelOpen ? '1.5px solid #8D6E73' : 'none',
+        borderTop: 'none',
+      }}>
+        <div style={{ padding: '1.25rem 1.25rem 1.5rem', backgroundColor: '#EDE4E6' }}>
 
       <style>{`
         .theme-input { transition: box-shadow 0.2s ease; outline: none; }
@@ -422,7 +467,7 @@ export default function AddMerch() {
                 <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>{category === 'Photocard' ? 'Change Front' : 'Change Image'}</p>
               </div>
             ) : (
-              <><img src="/frame.svg" alt="Frame" width="35" height="35" style={{ opacity: 0.6, marginBottom: '0.25rem' }} /><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>{category === 'Photocard' ? 'Front Image' : 'Drop image here'}</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><img src="/frame.svg" alt="Frame" width="35" height="35" style={{ opacity: 0.7, marginBottom: '0.25rem' }} /><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Front Image</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></div>
             )}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={e => handleFile(e.target.files[0])} style={{ display: 'none' }} />
           </div>
@@ -445,7 +490,13 @@ export default function AddMerch() {
                   <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#6A585B' }}>Change Back</p>
                 </div>
               ) : (
-                <><img src="/frame.svg" alt="Frame" width="35" height="35" style={{ opacity: 0.6, marginBottom: '0.25rem' }} /><p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>Backprint</p><p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p></>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <img src="/frame.svg" alt="Frame" width="35" height="35" style={{ opacity: 0.6, marginBottom: '0.25rem' }} />
+                  <p style={{ margin: '0.5rem 0 0.25rem', color: '#312527', fontSize: '0.85rem', fontWeight: '600' }}>
+                    Backprint <span style={{ color: '#6A585B', fontSize: '0.65rem', fontWeight: '400' }}>(optional)</span>
+                  </p>
+                  <p style={{ margin: 0, color: '#6A585B', fontSize: '0.75rem' }}>Drop or click to browse</p>
+                </div>
               )}
               <input ref={backFileInputRef} type="file" accept="image/*" onChange={e => handleBackFile(e.target.files[0])} style={{ display: 'none' }} />
             </div>
@@ -460,11 +511,13 @@ export default function AddMerch() {
       {loading && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(49,37,39,0.55)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#E6DADD', padding: '2rem 2.5rem', borderRadius: '12px', border: '1px solid #D4C4C7', textAlign: 'center', boxShadow: '0 4px 16px rgba(49,37,39,0.2)' }}>
-            <p style={{ color: '#312527', fontWeight: '700', fontSize: '1rem', margin: '0 0 0.5rem 0' }}>Uploading Merch...</p>
-            <p style={{ color: '#6A585B', fontSize: '0.85rem', margin: 0 }}>Please wait while your item is being added.</p>
+            <p style={{ color: '#312527', fontWeight: '700', fontSize: '1rem', margin: '0 0 0.5rem 0' }}>Uploading…</p>
+            <p style={{ color: '#6A585B', fontSize: '0.85rem', margin: 0 }}>Adding your item to the catalog.</p>
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

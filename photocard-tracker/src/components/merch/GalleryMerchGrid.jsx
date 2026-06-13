@@ -116,6 +116,7 @@ export default function GalleryMerchGrid({
   currentGroup,
   filterGroup,
   filteredCount,
+  dbGroupedCounts = {},
   onSelectItem,
   onStatusChange,
   onDelete,
@@ -250,7 +251,7 @@ export default function GalleryMerchGrid({
                     onMouseOut={e => e.currentTarget.style.opacity = 1}
                   >
                     <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527' }}>
-                      {block.gKey} <span style={{ color: '#6A585B', fontWeight: '400', fontSize: '1.2rem', textTransform: 'none' }}>— {groupItemCounts[block.gKey]} items</span>
+                      {block.gKey} <span style={{ color: '#6A585B', fontWeight: '400', fontSize: '1.2rem', textTransform: 'none' }}>— {dbGroupedCounts[block.gKey] ?? groupItemCounts[block.gKey]} items</span>
                     </h2>
                     <div style={{ marginLeft: '1rem', backgroundColor: '#C2B0B4', color: '#312527', borderRadius: '4px', padding: '0.2rem 0.6rem', fontSize: '0.8rem', fontWeight: 'bold' }}>
                       {isMainCollapsed ? 'SHOW ▼' : 'HIDE ▲'}
@@ -267,7 +268,7 @@ export default function GalleryMerchGrid({
                       onMouseOut={e => e.currentTarget.style.opacity = 1}
                     >
                       <h3 style={{ margin: 0, textAlign: 'left', fontSize: '1rem', color: '#8D6E73', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                        {block.subKey} <span style={{ color: '#6A585B', fontWeight: '400', fontSize: '0.85rem', textTransform: 'none' }}>— {block.items.length} items</span>
+                        {block.subKey} <span style={{ color: '#6A585B', fontWeight: '400', fontSize: '0.85rem', textTransform: 'none' }}>— {dbGroupedCounts[block.subKey] ?? block.items.length} items</span>
                       </h3>
                       <div style={{ marginLeft: '0.75rem', backgroundColor: '#C2B0B4', color: '#312527', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', fontWeight: 'bold' }}>
                         {isCollapsed ? 'SHOW ▼' : 'HIDE ▲'}

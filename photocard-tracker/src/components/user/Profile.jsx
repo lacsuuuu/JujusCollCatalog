@@ -13,11 +13,71 @@ import { auth, db } from '../../firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
+// New imports for the Posts tab
+import AddPost from '../feed/AddPost';
+import Feed from '../feed/Feed';
+import { Edit3 } from 'lucide-react';
+
+// Import the full Binders component!
+import Binders from '../merch/Binders'; 
+
+// CSS for the less intrusive Add Post collapsible
+const profileStyles = `
+  .add-post-collapsible {
+    background: #fcfbfb;
+    border: 1px solid rgba(141, 110, 115, 0.2);
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    transition: all 0.3s ease;
+  }
+
+  .add-post-collapsible summary {
+    padding: 1rem;
+    font-weight: 700;
+    color: #6A585B;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: color 0.2s ease;
+  }
+
+  .add-post-collapsible summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .add-post-collapsible summary:hover {
+    color: #312527;
+    background-color: rgba(141, 110, 115, 0.05);
+    border-radius: 8px;
+  }
+
+  .add-post-collapsible[open] summary {
+    border-bottom: 1px solid rgba(141, 110, 115, 0.1);
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .add-post-content {
+    padding: 1rem;
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
+
 export default function Profile({ user }) {
   const { username } = useParams(); 
   const navigate = useNavigate();
 
   const [targetUserId, setTargetUserId] = useState(null);
+  
+  // State for internal tabs
+  const [activeTab, setActiveTab] = useState('posts'); 
 
   useEffect(() => {
     const resolveUsername = async () => {
@@ -52,6 +112,7 @@ export default function Profile({ user }) {
 
   useEffect(() => { setEditForm(profileData); }, [profileData]);
 
+  // Filter States
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterGroup, setFilterGroup] = useState('All');
   const [filterEra, setFilterEra] = useState('All');
@@ -121,7 +182,6 @@ export default function Profile({ user }) {
  
   const handlePasswordReset = async () => {
     if (!user?.email) return setAlertMsg("No email found for this user.");
-    
     try {
       await sendPasswordResetEmail(auth, user.email);
       setAlertMsg('Password reset link sent! Check your inbox.');
@@ -141,16 +201,32 @@ export default function Profile({ user }) {
     }
   };
 
+  const getTabStyle = (tabName) => ({
+    padding: '0.75rem 1.5rem',
+    cursor: 'pointer',
+    background: 'none',
+    border: 'none',
+    borderBottom: activeTab === tabName ? '3px solid #8D6E73' : '3px solid transparent',
+    color: activeTab === tabName ? '#312527' : '#6A585B',
+    fontWeight: '700',
+    fontSize: '1rem',
+    transition: 'all 0.2s ease',
+    outline: 'none'
+  });
+
   if (targetUserId === 'not-found') return <div style={{ textAlign: 'center', padding: '3rem', color: '#6A585B' }}>User not found.</div>;
   if (!targetUserId || loading) return <p style={{ textAlign: 'center', color: '#6A585B' }}>Loading profile...</p>;
 
   return (
     <div style={{ width: '100%', paddingBottom: '3rem', textAlign: 'left' }}>
+      <style>{profileStyles}</style>
 
+      {/* Persistent Top Search Bar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
         <UserSearch />
       </div>
 
+      {/* 1. PERSISTENT PROFILE HEADER */}
       <ProfileHeader
         user={user}
         profileData={profileData}
@@ -161,8 +237,8 @@ export default function Profile({ user }) {
         isOwnProfile={isOwnProfile}
       />
 
-      {/* Profile info / edit form */}
-      <div className="profile-info" style={{ padding: '0 1rem', marginBottom: '3rem', position: 'relative' }}>
+      {/* 2. PERSISTENT PROFILE INFO (Bio & Editing) */}
+      <div className="profile-info" style={{ padding: '0 1rem', marginBottom: '2rem', position: 'relative' }}>
         {isEditing && isOwnProfile ? (
           <div className="edit-profile-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '500px' }}>
             <p style={{ color: '#6A585B', margin: 0, fontSize: '0.9rem' }}><em>Click your avatar or banner above to upload an image.</em></p>
@@ -226,56 +302,101 @@ export default function Profile({ user }) {
         )}
       </div>
 
-      {/* Public binders section */}
-      <ProfileBinders userId={targetUserId} globalMerch={globalMerch} />
-
-      <ProfileFilters
-        filterGroup={filterGroup}
-        filterCategory={filterCategory}
-        filterEra={filterEra}
-        filterMember={filterMember}
-        searchQuery={searchQuery}
-        dateStart={dateStart}
-        dateEnd={dateEnd}
-        showAdvanced={showAdvanced}
-        uniqueGroupNames={uniqueGroupNames}
-        uniqueCategories={uniqueCategories}
-        uniqueEras={uniqueEras}
-        uniqueMembers={uniqueMembers}
-        onGroupChange={handleGroupChange}
-        setFilterCategory={setFilterCategory}
-        setFilterEra={setFilterEra}
-        setFilterMember={setFilterMember}
-        setSearchQuery={setSearchQuery}
-        setDateStart={setDateStart}
-        setDateEnd={setDateEnd}
-        setShowAdvanced={setShowAdvanced}
-        resetFilters={resetFilters}
-      />
-
-      <ProfileMerchGrid
-        items={ownedCollection}
-        emptyMsg="No matching items in collection."
-        groupBy={groupBy}
-        setGroupBy={setGroupBy}
-        currentGroup={currentGroup}
-        filterGroup={filterGroup}
-        showGroupByControl
-        onSelectItem={setSelectedItem}
-      />
-
-      <div style={{ marginTop: '4rem' }}>
-        <ProfileMerchGrid
-          items={wishlistCollection}
-          emptyMsg="No matching items in wishlist."
-          groupBy={groupBy}
-          setGroupBy={setGroupBy}
-          currentGroup={currentGroup}
-          filterGroup={filterGroup}
-          onSelectItem={setSelectedItem}
-        />
+      {/* 3. TAB NAVIGATION (Moved Below Header Info) */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(141, 110, 115, 0.2)', marginBottom: '2rem' }}>
+        <button style={getTabStyle('posts')} onClick={() => setActiveTab('posts')}>Posts</button>
+        <button style={getTabStyle('collection')} onClick={() => setActiveTab('collection')}>Collection</button>
+        <button style={getTabStyle('binders')} onClick={() => setActiveTab('binders')}>Binders</button>
       </div>
 
+      {/* 4. TAB CONTENT: POSTS */}
+      {activeTab === 'posts' && (
+        <div className="tab-posts">
+          {/* Personal Feed & Add Post (Header removed from here) */}
+          <div style={{ padding: '0 1rem' }}>
+            {isOwnProfile && (
+              <details className="add-post-collapsible">
+                <summary>
+                  <Edit3 size={18} />
+                  Create Post
+                </summary>
+                <div className="add-post-content">
+                  <AddPost />
+                </div>
+              </details>
+            )}
+            
+            {/* Feed component - Pass userId to filter for this profile's posts */}
+            <Feed user={user} userId={targetUserId} />
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: COLLECTION */}
+      {activeTab === 'collection' && (
+        <div className="tab-collection">
+          <ProfileFilters
+            filterGroup={filterGroup}
+            filterCategory={filterCategory}
+            filterEra={filterEra}
+            filterMember={filterMember}
+            searchQuery={searchQuery}
+            dateStart={dateStart}
+            dateEnd={dateEnd}
+            showAdvanced={showAdvanced}
+            uniqueGroupNames={uniqueGroupNames}
+            uniqueCategories={uniqueCategories}
+            uniqueEras={uniqueEras}
+            uniqueMembers={uniqueMembers}
+            onGroupChange={handleGroupChange}
+            setFilterCategory={setFilterCategory}
+            setFilterEra={setFilterEra}
+            setFilterMember={setFilterMember}
+            setSearchQuery={setSearchQuery}
+            setDateStart={setDateStart}
+            setDateEnd={setDateEnd}
+            setShowAdvanced={setShowAdvanced}
+            resetFilters={resetFilters}
+          />
+
+          <ProfileMerchGrid
+            items={ownedCollection}
+            emptyMsg="No matching items in collection."
+            groupBy={groupBy}
+            setGroupBy={setGroupBy}
+            currentGroup={currentGroup}
+            filterGroup={filterGroup}
+            showGroupByControl
+            onSelectItem={setSelectedItem}
+          />
+
+          <div style={{ marginTop: '4rem' }}>
+            <ProfileMerchGrid
+              items={wishlistCollection}
+              emptyMsg="No matching items in wishlist."
+              groupBy={groupBy}
+              setGroupBy={setGroupBy}
+              currentGroup={currentGroup}
+              filterGroup={filterGroup}
+              onSelectItem={setSelectedItem}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: BINDERS */}
+      {activeTab === 'binders' && (
+        <div className="tab-binders">
+          {/* Conditionally render the full management tool vs the public viewer */}
+          {isOwnProfile ? (
+            <Binders user={user} />
+          ) : (
+            <ProfileBinders userId={targetUserId} globalMerch={globalMerch} />
+          )}
+        </div>
+      )}
+
+      {/* Global Modals/Alerts */}
       <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} user={user} userRole={viewerProfile?.role} />
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
     </div>

@@ -2,7 +2,6 @@ import CustomSelect from '../ui/CustomSelect';
 
 export default function GalleryFilters({
   filterGroup,
-  filterCategory,
   filterEra,
   filterMember,
   searchQuery,
@@ -10,11 +9,9 @@ export default function GalleryFilters({
   dateEnd,
   showAdvanced,
   uniqueGroups,
-  uniqueCategories,
   uniqueEras,
   uniqueMembers,
   onGroupChange,
-  setFilterCategory,
   setFilterEra,
   setFilterMember,
   setSearchQuery,
@@ -60,13 +57,6 @@ export default function GalleryFilters({
       {showAdvanced && (
         <div className="adv-filters" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem', padding: '1rem', backgroundColor: '#E6DADD', borderRadius: '10px', border: '1px solid #D4C4C7' }}>
           <CustomSelect
-            value={filterCategory}
-            onChange={setFilterCategory}
-            options={uniqueCategories.map(cat => ({ value: cat, label: cat === 'All' ? 'All Types' : cat }))}
-            placeholder="All Types"
-            style={{ flex: 1, minWidth: '120px' }}
-          />
-          <CustomSelect
             value={filterEra}
             onChange={setFilterEra}
             options={uniqueEras.map(era => ({ value: era, label: era === 'All' ? 'All Eras' : era }))}
@@ -90,7 +80,6 @@ export default function GalleryFilters({
                       transition: 'opacity 0.2s' }}
           />
 
-
           <div className="theme-date-picker" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#C2B0B4', borderRadius: '6px', padding: '0.5rem 1rem', flex: '0 1 auto', transition: 'box-shadow 0.2s ease' }}>
             <span style={{ fontSize: '0.85rem', color: '#6A585B', fontWeight: '600', whiteSpace: 'nowrap', marginRight: '0.2rem', pointerEvents: 'none' }}>Released:</span>
 
@@ -105,7 +94,7 @@ export default function GalleryFilters({
               <span style={{ color: '#312527', fontSize: '0.85rem', fontWeight: '500', pointerEvents: 'none' }}>{formatMMYYYY(dateEnd)}</span>
               <input type="month" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
             </div>
-
+            
             <svg style={{ pointerEvents: 'none', marginLeft: '0.2rem' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8D6E73" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="16" y1="2" x2="16" y2="6"></line>

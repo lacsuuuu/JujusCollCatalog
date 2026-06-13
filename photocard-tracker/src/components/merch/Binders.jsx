@@ -182,7 +182,6 @@ export default function Binders({ user }) {
 
   if (loading && user) return <div style={{ textAlign: 'center', color: '#6A585B', padding: '3rem' }}>Loading binders...</div>;
 
-  // ── Logged-out state ──────────────────────────────────────
   if (!user) {
     return (
       <div style={{ width: '100%' }}>
@@ -196,7 +195,7 @@ export default function Binders({ user }) {
           <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: '#312527' }}>Log in to Create Your Own Binder</h2>
           <p style={{ margin: 0, color: '#6A585B', fontSize: '0.95rem', maxWidth: '360px' }}>Organize your photocard collection into custom binders. Log in to get started.</p>
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate('/login')}
             style={{ padding: '0.75rem 2rem', backgroundColor: '#8D6E73', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer' }}
           >
             Log In
@@ -210,7 +209,6 @@ export default function Binders({ user }) {
     <div style={{ width: '100%', animation: 'fadeIn 0.3s' }}>
       <ThemeAlert message={alertMsg} onClose={() => setAlertMsg(null)} />
 
-      {/* Confirm modal */}
       {confirmAction && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(49,37,39,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#E6DADD', padding: '1.5rem 2rem', borderRadius: '12px', border: '1px solid #D4C4C7', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '320px', width: '90%' }}>
@@ -224,7 +222,6 @@ export default function Binders({ user }) {
       )}
 
       {!activeBinder ? (
-        // ── DIRECTORY VIEW ────────────────────────────────────
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#312527', margin: 0 }}>My Binders</h2>
@@ -240,10 +237,9 @@ export default function Binders({ user }) {
                 <div
                   key={binder.id}
                   className="binder-card"
-                  onClick={() => navigate(`/binders/${binder.id}`)}
-                  style={{ backgroundColor: '#D4C4C7', borderRadius: '12px', padding: '2rem 1.5rem', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.5rem', position: 'relative' }}
+                  onClick={() => setActiveBinder(binder)} 
+                  style={{ backgroundColor: '#D4C4C7', borderRadius: '12px', padding: '2rem 1.5rem', boxShadow: '0 4px 12px rgba(49,37,39,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.5rem', position: 'relative', cursor: 'pointer' }}
                 >
-                  {/* Public/Private toggle badge */}
                   <button
                     className={`public-toggle ${binder.isPublic ? 'is-public' : 'is-private'}`}
                     onClick={(e) => handleTogglePublic(e, binder)}
@@ -251,6 +247,7 @@ export default function Binders({ user }) {
                       position: 'absolute', top: '1rem', right: '1rem',
                       backgroundColor: binder.isPublic ? 'rgba(141,110,115,0.2)' : 'rgba(49,37,39,0.08)',
                       color: binder.isPublic ? '#8D6E73' : '#A08D90',
+                      border: 'none', borderRadius: '20px', padding: '0.25rem 0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', zIndex: 10
                     }}
                     title={binder.isPublic ? 'Click to make private' : 'Click to make public'}
                   >
@@ -262,7 +259,6 @@ export default function Binders({ user }) {
                     {binder.isPublic ? 'Public' : 'Private'}
                   </button>
 
-                  {/* Binder cover preview */}
                   <div style={{ width: '150px', height: '200px', backgroundColor: '#C2B0B4', borderRadius: '6px 16px 16px 6px', borderLeft: '16px solid #8D6E73', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: 'inset 3px 0 6px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: binder.type === 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gridAutoRows: '1fr', gap: '4px', padding: '12px', width: '100%', height: '100%', boxSizing: 'border-box' }}>
                       {Array.from({ length: binder.type }).map((_, i) => {
@@ -288,7 +284,6 @@ export default function Binders({ user }) {
             {binders.length === 0 && <p style={{ color: '#6A585B', gridColumn: '1 / -1' }}>No binders yet. Create one to get started!</p>}
           </div>
 
-          {/* Create modal */}
           {showCreate && (
             <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(49,37,39,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
               <div style={{ backgroundColor: '#E6DADD', padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px' }}>
@@ -310,7 +305,6 @@ export default function Binders({ user }) {
           )}
         </div>
       ) : (
-        // ── ACTIVE BINDER VIEW ────────────────────────────────
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
             <button onClick={() => { setActiveBinder(null); setIsEditing(false); }} style={{ background: 'none', border: 'none', color: '#6A585B', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
@@ -352,7 +346,6 @@ export default function Binders({ user }) {
           <div className="binder-layout" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', justifyContent: isEditing ? 'flex-start' : 'center' }}>
             <div style={{ flex: isEditing ? '0 0 auto' : '1', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: activeBinder.type === 9 ? '550px' : activeBinder.type === 4 ? '400px' : '500px', margin: isEditing ? '0' : '0 auto' }}>
 
-              {/* Page Controls */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minWidth: '280px', marginBottom: '1.5rem', backgroundColor: '#D4C4C7', padding: '0.5rem 1.5rem', borderRadius: '30px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                   <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} style={{ background: 'none', border: 'none', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', color: currentPage === 0 ? '#C2B0B4' : '#312527', display: 'flex', padding: 0 }}>
@@ -376,7 +369,6 @@ export default function Binders({ user }) {
                 </button>
               </div>
 
-              {/* Binder Grid */}
               <div style={{ backgroundColor: '#F9F6F0', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 8px 24px rgba(49,37,39,0.15)', width: '100%', borderLeft: '12px solid #C2B0B4', boxSizing: 'border-box' }}>
                 <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: activeBinder.type === 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)' }}>
                   {Array.from({ length: activeBinder.type }).map((_, index) => {

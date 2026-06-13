@@ -7,10 +7,9 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   GoogleAuthProvider,
-  signInWithPopup,
-  signInWithCredential
+  signInWithPopup
 } from 'firebase/auth';
-import { doc, getDoc, writeBatch, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import ThemeAlert from '../ui/ThemeAlert';
 import { useAuth } from '../../context/AuthContext';
 import { useUserProfile } from '../../hooks/useUserProfile';
@@ -89,19 +88,13 @@ export default function Login({ user }) {
   const { profileData } = useUserProfile(user?.uid);
   
   const [mode, setMode] = useState('login'); 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(''); // Acts as username OR email during login
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [accountType, setAccountType] = useState('user'); 
   const [alertMsg, setAlertMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  useEffect(() => {
-    if (user && profileData) {
-      navigate('/feed');
-    }
-  }, [user, profileData, navigate]);
 
   const switchMode = (newMode) => {
     setMode(newMode);
@@ -115,11 +108,32 @@ export default function Login({ user }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setAlertMsg('');
+    let targetEmail = email.trim(); // Assume it's an email initially
+
+    // If the input doesn't contain an '@', assume it's a username
+    if (!targetEmail.includes('@')) {
+      try {
+        const cleanUsername = targetEmail.toLowerCase();
+        const usernameSnap = await getDoc(doc(db, 'usernames', cleanUsername));
+        
+        if (usernameSnap.exists()) {
+          // Username found, swap out the username for the associated email
+          targetEmail = usernameSnap.data().email;
+        } else {
+          return setAlertMsg("Username not found.");
+        }
+      } catch (error) {
+        console.error("Error fetching username:", error);
+        return setAlertMsg("Error connecting to database.");
+      }
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, targetEmail, password);
       setAlertMsg("Logged in successfully!");
     } catch (error) {
-      setAlertMsg("Invalid email or password.");
+      setAlertMsg("Invalid email/username or password.");
     }
   };
 
@@ -269,7 +283,15 @@ export default function Login({ user }) {
 
       {mode === 'login' ? (
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <input className="login-input" type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+          {/* Changed input type to 'text' to accept usernames and updated the placeholder */}
+          <input 
+            className="login-input" 
+            type="text" 
+            placeholder="Email or Username" 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+            required 
+          />
           <PasswordInput value={password} onChange={e => setPassword(e.target.value)} showPassword={showPassword} onToggle={() => setShowPassword(v => !v)} />
           
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
